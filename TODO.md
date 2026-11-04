@@ -10,7 +10,7 @@ Items marked **[PAUL]** need Paul. Never wait on them: use the safe default note
 - [x] Round 1 proposals: security, risk, quant, execution, AI, social, chain forensics
 - [x] Round 1 proposal: data-engineer
 - [x] Round 2a: red-team attacks all 8 proposals → `team-debate/round2/red-team-attacks.md`
-- [ ] Round 2b: each specialist answers the attacks, challenges other areas, and proposes 2–3 edge ideas with a data test
+- [x] Round 2b: each specialist answers the attacks, challenges other areas, and proposes 2–3 edge ideas with a data test
 - [ ] Round 2c: red-team re-check of the responses, plus attacks on every edge idea
 - [ ] Round 3: lead-architect rulings → `team-debate/round3/rulings.md`
 - [ ] Write `DESIGN.md` (architecture, decision table, monthly cost, cost per trade, risks, phased build plan, ranked edge ideas)
