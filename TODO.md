@@ -9,7 +9,7 @@ Items marked **[PAUL]** need Paul. Never wait on them: use the safe default note
 - [x] Paul's mandate added to the brief and to `CLAUDE.md` (the team owns the strategy, its own edge, speed, autonomy)
 - [x] Round 1 proposals: security, risk, quant, execution, AI, social, chain forensics
 - [x] Round 1 proposal: data-engineer
-- [ ] Round 2a: red-team attacks all 8 proposals → `team-debate/round2/red-team-attacks.md`
+- [x] Round 2a: red-team attacks all 8 proposals → `team-debate/round2/red-team-attacks.md`
 - [ ] Round 2b: each specialist answers the attacks, challenges other areas, and proposes 2–3 edge ideas with a data test
 - [ ] Round 2c: red-team re-check of the responses, plus attacks on every edge idea
 - [ ] Round 3: lead-architect rulings → `team-debate/round3/rulings.md`
