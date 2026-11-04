@@ -22,6 +22,27 @@ The original kickoff is reproduced at the bottom of this file. It is the source 
    Explain any jargon the first time you use it.
 7. **Short.** A Round 1 proposal is about 1–2 pages: the options table, a recommendation, open risks.
 
+## Paul's mandate (added 2026-11-04, after the kickoff). This changes the team's job.
+Paul's words, lightly cleaned up: "This is an AI project. You and your team are responsible for finding the best ideas,
+the best ways to take trades and make money. It needs to outperform other bots. It needs to take information in faster
+than other bots. You cannot rely on copying other bots, because the copy is very rarely better. Use your power as a
+collective to come up with the greatest trading bot anyone has ever seen. Treat this with the seriousness it deserves.
+I won't tell you more. Use your genius. Tell me when and where I can help, but if you need help and get no response,
+keep going and come back to it. If you ever finish and don't know what to do, make a list of what needs doing and work from it."
+
+What this means for every agent:
+1. **The team owns the strategy.** Don't wait for Paul's trading rules. Propose them, test them, and refine them. Paul's
+   questions file asks only for what nobody else can give: budget, bankroll, the most he will lose, and approvals.
+2. **Find an edge of our own.** Copy-trading other bots or KOLs is at most one input, never the strategy. For every idea,
+   say *why we would win* against the bots already doing it, and how we would prove it with data before real money.
+3. **Speed: be honest about where we can win.** Professional snipers run next to validators with paid feeds. Say where we
+   can be faster (for example a niche signal, faster decoding, better filtering) and where we can't, and what it costs.
+   Winning on *better decisions* (selection, sizing, exits) counts as much as raw speed.
+4. **Seriousness means honesty.** No hype, no promised returns. Edges are hypotheses until the data proves them.
+   Losing less is a real edge.
+5. **Safety rules still stand.** Paper trading by default forever, no real-money trading code until Paul approves the
+   design, no keys, no transactions.
+
 ## Paul's priorities, in order
 1. Never lose money to bugs, bad data, slow execution, or security mistakes.
 2. Catch every relevant coin fast (no blind spots).
@@ -57,10 +78,16 @@ The original kickoff is reproduced at the bottom of this file. It is the source 
 - Prompt caching: cache writes ~1.25× input price, cache reads ~0.1×; a minimum prefix length applies (512–4096 tokens depending on model).
 - Every model can return `stop_reason: "refusal"`, and the bot must handle it as "no decision", never as "buy".
 
-## File layout
-- Round 1: `team-debate/round1/<your-role>.md`
-- Round 2: red-team writes `team-debate/round2/red-team-attacks.md`; each specialist writes `team-debate/round2/<role>-response.md`
-- Round 3: lead-architect writes `team-debate/round3/rulings.md`, then `DESIGN.md` and `QUESTIONS_FOR_PAUL.md` at repo root.
+## File layout and rounds
+- Round 1: `team-debate/round1/<role>.md`: each specialist's proposal for their area.
+- Round 2a: red-team writes `team-debate/round2/red-team-attacks.md`.
+- Round 2b: each specialist writes `team-debate/round2/<role>-response.md` with three parts: (1) answers to every
+  red-team attack on their area (fixed / accepted risk / question), (2) challenges to other areas, (3) **an edge hunt:**
+  2–3 ideas from their area for how we beat other bots, each with why we'd win, what it costs, and the exact data test
+  that would prove or kill it.
+- Round 2c: red-team writes `team-debate/round2/red-team-recheck.md`: which attacks are fixed, partly fixed or still open,
+  plus attacks on every edge idea.
+- Round 3: lead-architect writes `team-debate/round3/rulings.md`, then `DESIGN.md` and `QUESTIONS_FOR_PAUL.md` at the repo root.
 
 ---
 ## Original kickoff from Paul (verbatim)
