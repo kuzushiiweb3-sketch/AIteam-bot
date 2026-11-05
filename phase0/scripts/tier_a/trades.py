@@ -24,6 +24,14 @@ def _pct(vals, q):
     return v[min(len(v) - 1, int(round(q * (len(v) - 1))))]
 
 
+def add_flags(acc: dict, tx) -> None:
+    """Tally TS-6 tags (FAILED_TX_EVENT / EVENT_PROVENANCE / NO_INNER_IX) for a row's numbers."""
+    if tx is None:
+        return
+    for k, v in pump.event_flags(tx).items():
+        acc[k] = acc.get(k, 0) + v
+
+
 def _price(ev: dict) -> "float | None":
     """Report-only float price (SOL per token, 6-decimal coins), from event reserves. Never used in decisions."""
     b = int(ev.get("pool_base_token_reserves") or 0)
@@ -129,8 +137,8 @@ def a11(ctx) -> dict:
         if tx is None:
             continue
         trades = [p for p in pump.program_instructions(tx, (pump.PUMPSWAP_PROGRAM,)) if p.name in pump.AMM_TRADES]
-        if any(ix.data[:8] == EVENT_PREFIX for ix in tx.all_ixs()):
-            events_in_failed += 1             # TS-6 evidence; never used as a trade
+        if pump.event_flags(tx)[pump.FAILED_TX_EVENT]:
+            events_in_failed += 1             # TS-6 F1 evidence (FAILED_TX_EVENT); never used as a trade
         if trades:
             decoded_failed += 1
             p = trades[0]
@@ -175,7 +183,7 @@ def a11(ctx) -> dict:
 # ---- A16 -------------------------------------------------------------------------------------------
 def a16(ctx) -> dict:
     migs = _recent_migrations(ctx, min_age_s=900, n=ctx.n(50, 3))
-    per_pool, tapes = [], {}
+    per_pool, tapes, flags = [], {}, {}
     for m in migs:
         tape = early_tape(ctx, m, 600, max_pages=ctx.n(15, 2), max_txs=ctx.n(400, 40))
         if tape is None:
@@ -184,6 +192,7 @@ def a16(ctx) -> dict:
         boosts, inits, flow = [], [], []
         for e in tape:
             tx = ctx.get_tx(e["signature"])
+            add_flags(flags, tx)
             if tx is None or not tx.success:
                 continue
             for ev in pump.events_in_tx(tx):
@@ -224,7 +233,7 @@ def a16(ctx) -> dict:
     return {"outcome": "PASS" if ok else "INCOMPLETE: " + f"{len(migs) - described} pools too busy to page back",
             "headline": f"{with_boost}/{described} graduates show BOOST; boost_enabled={gc.get('boost_enabled')}",
             "numbers": {"graduates": len(migs), "described": described, "with_boost": with_boost,
-                        "without_boost_group": described - with_boost, "per_pool": per_pool[:60]},
+                        "without_boost_group": described - with_boost, "ts6_tags": flags, "per_pool": per_pool[:60]},
             "follow_up": "Graduates without BOOST are their own group (rulings R5)."}
 
 
@@ -360,7 +369,7 @@ def a25(ctx) -> dict:
 # ---- A29 -------------------------------------------------------------------------------------------
 def a29(ctx) -> dict:
     migs = _recent_migrations(ctx, min_age_s=300, n=ctx.n(100, 3))
-    paths, moves = {}, []
+    paths, moves, flags = {}, [], {}
     for m in migs:
         entries = []
         for e in ctx.signatures(m["pool"], max_total=1000 * ctx.n(15, 2), stop_before_slot=m["slot"]):
@@ -370,6 +379,7 @@ def a29(ctx) -> dict:
         per_slot: dict = {}
         for e in sel:
             tx = ctx.get_tx(e["signature"])
+            add_flags(flags, tx)
             if tx is None or not tx.success:
                 continue
             for p in pump.amm_trades(tx):
@@ -388,6 +398,7 @@ def a29(ctx) -> dict:
     ctx.store.save_artifacts(ctx.row, {"paths": paths})
     return {"outcome": "MEASURED", "headline": f"{len(paths)} pools; median max move in blocks 0-20: {_pct(moves, 0.5)}",
             "numbers": {"pools": len(paths), "max_move_p50": _pct(moves, 0.5), "max_move_p90": _pct(moves, 0.9),
+                        "ts6_tags": flags,
                         "synthetic_pools": sum(1 for v in paths.values() if v["synthetic"])},
             "notes": "Pilot only. Prices are report-only floats from event reserves (pre/post semantics per FC7 unknown).",
             "follow_up": "Sizes D03."}
@@ -399,7 +410,7 @@ def a30(ctx) -> dict:
     tips = set((ctx.store.load_artifacts("A19") or {}).get("tip_accounts") or [])
     boosted = [r for r in a16.get("per_pool", []) if r.get("last_boost_t")][: ctx.n(20, 2)]
     migs = a16.get("migrations", {})
-    out, tip_vals = [], []
+    out, tip_vals, flags = [], [], {}
     blocks_left = ctx.n(5, 1)
     for r in boosted:
         m = migs.get(r["pool"])
@@ -411,6 +422,7 @@ def a30(ctx) -> dict:
         per_slot: dict = {}
         for e in entries:
             tx = ctx.get_tx(e["signature"])
+            add_flags(flags, tx)
             if tx is None:
                 continue
             buys = [p for p in pump.program_instructions(tx, (pump.PUMPSWAP_PROGRAM,))
@@ -440,8 +452,9 @@ def a30(ctx) -> dict:
                     "cu_price_p50": _pct([x for v in per_slot.values() for x in v["cu_price"]], 0.5)})
     return {"outcome": "MEASURED", "headline": f"{len(out)} boosted graduates; median fail share "
                                                f"{_pct([o['fail_share'] for o in out if o['fail_share'] is not None], 0.5)}",
-            "numbers": {"pools": out, "tips_in_busiest_blocks": {"n": len(tip_vals), "p50": _pct(tip_vals, 0.5),
-                                                                  "p95": _pct(tip_vals, 0.95)}},
+            "numbers": {"pools": out, "ts6_tags": flags,
+                        "tips_in_busiest_blocks": {"n": len(tip_vals), "p50": _pct(tip_vals, 0.5),
+                                                   "p95": _pct(tip_vals, 0.95)}},
             "notes": "Pilot only. Failed buys are counted from instruction arguments, never from events (TS-6).",
             "follow_up": "Sizes D02."}
 
@@ -534,7 +547,7 @@ def a32(ctx) -> dict:
     rows = []
     for w in wallets:
         calls0 = ctx.budget.row_calls(ctx.row)
-        t0 = time.monotonic()
+        t0 = time.monotonic_ns()
         oldest = None
         n = 0
         for e in ctx.signatures(w, max_total=1000 * ctx.n(5, 1)):
@@ -548,7 +561,7 @@ def a32(ctx) -> dict:
                     funder = frm
                     break
         complete = n < 1000 * ctx.n(5, 1)
-        rows.append({"wallet": w, "calls": ctx.budget.row_calls(ctx.row) - calls0, "seconds": round(time.monotonic() - t0, 3),
+        rows.append({"wallet": w, "calls": ctx.budget.row_calls(ctx.row) - calls0, "seconds": round((time.monotonic_ns() - t0) / 1e9, 3),
                      "funder": funder, "history_complete": complete})
     calls = [r["calls"] for r in rows]
     secs = [r["seconds"] for r in rows]

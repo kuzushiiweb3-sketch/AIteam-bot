@@ -26,6 +26,7 @@ if HERE not in sys.path:
 from p0 import budget as budget_mod  # noqa: E402
 from p0 import t6  # noqa: E402
 from p0.budget import Budget, BudgetExceeded  # noqa: E402
+from p0.clock import clock_sync_status  # noqa: E402
 from p0.context import Ctx, NeedRow, Options, build_clients  # noqa: E402
 from p0.http_get import GetRefused, HttpGetClient  # noqa: E402
 from p0.pump import load_decoders  # noqa: E402
@@ -167,6 +168,10 @@ def run_row(ctx: Ctx, row, have_key: bool, status: dict, args) -> dict:
     res.update(out)
     if args.quick and not str(res.get("outcome", "")).startswith(("NO KEY", "BLOCKED", "SKIPPED", "DEFERRED")):
         res["outcome"] = "QUICK MODE (not a pass mark): " + str(res.get("outcome"))
+    prov = dict(res.get("provenance") or {})
+    prov.setdefault("clock_sync", clock_sync_status())
+    prov.setdefault("interval_clock", "time.monotonic_ns")
+    res["provenance"] = prov
     res.update(finished_utc=utc_now(), domains_used=sorted(ctx.hosts_used),
                provider=", ".join(sorted(ctx.provider_used)) or "-",
                fixtures=res.get("fixtures") or fixtures,

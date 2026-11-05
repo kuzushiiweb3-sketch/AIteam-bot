@@ -1,0 +1,25 @@
+policy  trades  true-mean  shared-day-sd  Gate-v2 schedule      scope        rate %   [95% upper]   secs
+v10     RS2.2      0.0       8.0          v1.0 tiers            rule INC-1    9.000   [10.630]     4.5
+v11     RS2.2      0.0       8.0          10/5/1%               rule INC-1    0.000   [ 0.299]     2.8
+v10     RS2.2      0.0       8.0          v1.0 tiers            rule F1-P     0.500   [ 1.048]     4.2
+v11     RS2.2      0.0       8.0          10/5/1%               rule F1-P     0.100   [ 0.473]     5.1
+v10     RS2.2      0.0       8.0          v1.0 tiers            rule F2-main  1.100   [ 1.814]     1.7
+v11     RS2.2      0.0       8.0          10/5/1%               rule F2-main  0.100   [ 0.473]     2.4
+v10     RS2.2      0.0       8.0          v1.0 tiers            programme    10.900   [12.657]    35.7
+v11     RS2.2      0.0       8.0          10/5/1%               programme     1.600   [ 2.420]    69.3
+v11     RS2.2      0.0       0.0          10/5/1%               programme     0.700   [ 1.311]    68.6
+v11     RS2.2      0.0       8.0          5/2.5/1%              programme     0.500   [ 1.048]    66.4
+v11     RS2.2      0.0       0.0          5/2.5/1%              programme     0.300   [ 0.774]    67.0
+v10     SYM3.0     0.0       8.0          v1.0 tiers            rule INC-1   10.100   [11.806]     3.0
+v11     SYM3.0     0.0       8.0          10/5/1%               rule INC-1    0.100   [ 0.473]     2.7
+v10     SYM3.0     0.0       8.0          v1.0 tiers            rule F1-P     0.700   [ 1.311]     4.3
+v11     SYM3.0     0.0       8.0          10/5/1%               rule F1-P     0.000   [ 0.299]     5.7
+v10     SYM3.0     0.0       8.0          v1.0 tiers            rule F2-main  1.500   [ 2.300]     1.4
+v11     SYM3.0     0.0       8.0          10/5/1%               rule F2-main  0.000   [ 0.299]     2.3
+v10     SYM3.0     0.0       8.0          v1.0 tiers            programme    16.300   [18.344]    36.3
+v11     SYM3.0     0.0       8.0          10/5/1%               programme     1.600   [ 2.420]    66.3
+v11     SYM3.0     0.0       0.0          10/5/1%               programme     1.000   [ 1.690]    62.5
+v11     SYM3.0     0.0       8.0          5/2.5/1%              programme     0.300   [ 0.774]    67.2
+v11     SYM3.0     0.0       0.0          5/2.5/1%              programme     0.200   [ 0.628]    61.8
+v11     RS2.2     -3.0       8.0          10/5/1%               programme     0.000   [ 0.299]    61.2
+v10     RS2.2     -3.0       8.0          v1.0 tiers            programme     1.000   [ 1.690]     9.2

@@ -80,6 +80,21 @@ def find_program_address(seeds: list, program_id: str) -> "tuple[str, int]":
     raise ValueError("no viable bump")
 
 
+def create_with_seed(base: str, seed: str, owner: str) -> str:
+    """Solana's Pubkey::create_with_seed: sha256(base || seed || owner). No curve check.
+
+    [VERIFIED-DOC anza-xyz/solana-sdk address/src/lib.rs create_with_seed, fetched 2026-11-05,
+    sha256 9e00c07b...f350; its own test vector is in tests/test_b58_pda.py]
+    """
+    raw_seed = seed.encode("utf-8")
+    if len(raw_seed) > MAX_SEED_LEN:
+        raise ValueError("seed too long")
+    owner_b = pubkey_bytes(owner)
+    if owner_b.endswith(PDA_MARKER):
+        raise ValueError("illegal owner")
+    return b58encode(hashlib.sha256(pubkey_bytes(base) + raw_seed + owner_b).digest())
+
+
 def lit(text: str) -> bytes:
     """A literal UTF-8 seed (use this, not a str, when the text could look like base58)."""
     return text.encode("utf-8")

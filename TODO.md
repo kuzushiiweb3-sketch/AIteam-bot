@@ -28,7 +28,7 @@ Work that needs no network and no Paul (do these first, in order):
 - [x] `docs/costs.md`: the price table, re-checked by web search where possible; mark anything still needing the live pricing page
 Red-team Phase 0 review (team-debate/phase0/red-team-phase0-review.md): all five SIGN OFF WITH FIXES
 - [ ] preregistration v1.1: PR-1 to PR-5 (blocking) plus the rest; run the offline false-pass simulations
-- [ ] fee-model v1.1: FM-3 to FM-5 (blocking, T6) plus FM-1 and FM-2 (Phase 3 guard) and the rest
+- [x] fee-model v1.1: FM-3 to FM-5 (blocking, T6) plus FM-1 and FM-2 (Phase 3 guard) and the rest
 - [x] tech-stack v1.1: TS-1, TS-2, TS-6, TS-8 (blocking) plus the rest
 - [ ] assumption register: AR-1 (seven missing High rows), fix A-002 wording, re-rate A-057 and A-058 to High, recount tags
 - [ ] costs: CO-2 to CO-4 before Phase 3; measure data volume before buying the disk

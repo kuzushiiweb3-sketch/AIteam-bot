@@ -191,17 +191,23 @@ def a03(ctx) -> dict:
     counts = {"txs": len(entries), "successful": 0, "failed": 0, "with_migration_event": 0, "with_create_pool_event": 0,
               "with_both_events": 0, "synthetic_post_complete_buy": 0, "complete_in_same_tx": 0,
               "complete_migrate_buy_same_tx": 0, "migrate_ix": 0, "migrate_v2_ix": 0, "unknown_pump_ix": 0,
-              "migration_without_create_pool": 0, "create_pool_without_migration": 0}
+              "migration_without_create_pool": 0, "create_pool_without_migration": 0,
+              "FAILED_TX_EVENT": 0, "EVENT_PROVENANCE": 0, "NO_INNER_IX": 0}
     signer_counts: dict = {}
     unknown_names: dict = {}
     for e in entries:
         tx = ctx.get_tx(e["signature"])
         if tx is None:
             continue
+        fl = pump.event_flags(tx)
+        for k, v in fl.items():
+            counts[k] += v
         if not tx.success:
             failed += 1
             counts["failed"] += 1
-            continue                         # TS-6: nothing inside a failed tx is counted as a migration
+            continue                         # TS-6 F1: nothing inside a failed tx is counted as a migration
+        if tx.no_inner_ix:
+            continue                         # TS-6 F4: can't see events; counted as NO_INNER_IX, never "no migration"
         counts["successful"] += 1
         evs = pump.events_in_tx(tx)
         names = [ev.name for ev in evs]
@@ -351,7 +357,8 @@ def a04(ctx) -> dict:
     stats = {"txs": 0, "successful": 0, "failed": 0, "log_truncated": 0, "trades": 0, "trades_with_event": 0,
              "trades_missing_event": 0, "failed_with_inner_events": 0, "failed_with_inner_instructions": 0,
              "program_data_log_lines": 0, "unknown_events": 0, "event_shape_errors": 0, "unknown_ix": 0,
-             "event_prefix_cpis": 0}
+             "event_prefix_cpis": 0, "FAILED_TX_EVENT": 0, "EVENT_PROVENANCE": 0, "NO_INNER_IX": 0,
+             "trades_in_no_inner_ix_txs": 0}
     by_ix: dict = {}
     missing = []
     creates, amm_samples, lookups = [], [], []
@@ -363,6 +370,8 @@ def a04(ctx) -> dict:
             stats["txs"] += 1
             stats["log_truncated"] += tx.log_truncated
             stats["program_data_log_lines"] += len(program_data_logs(tx))
+            for k, v in pump.event_flags(tx).items():
+                stats[k] += v
             if not tx.success:
                 stats["failed"] += 1
                 if any(tx.inner.values()):
@@ -370,6 +379,10 @@ def a04(ctx) -> dict:
                 if any(ix.data[:8] == EVENT_PREFIX for ix in tx.all_ixs()):
                     stats["failed_with_inner_events"] += 1          # TS-6 / AR-T1 evidence; never used as trades
                 continue
+            if tx.no_inner_ix:
+                stats["trades_in_no_inner_ix_txs"] += sum(1 for p in pump.program_instructions(tx)
+                                                          if p.name in pump.CURVE_TRADES + pump.AMM_TRADES)
+                continue                                           # F4: "can't see events", not "missing event"
             stats["successful"] += 1
             for ev in pump.events_in_tx(tx):
                 stats["event_prefix_cpis"] += 1
@@ -415,7 +428,7 @@ def a04(ctx) -> dict:
                 lookups.append({"sig": tx.signature, "tables": [t for t, _, _ in tx.lookups], "mints": sorted(m for m in mints if m)})
     ctx.store.save_artifacts(ctx.row, {"stats": stats, "by_ix": by_ix, "missing": missing, "creates": creates,
                                        "amm_samples": amm_samples, "lookups": lookups})
-    ok = stats["trades"] > 0 and stats["trades_missing_event"] == 0
+    ok = stats["trades"] > 0 and stats["trades_missing_event"] == 0 and stats["EVENT_PROVENANCE"] == 0
     share = round(stats["log_truncated"] / stats["txs"], 5) if stats["txs"] else None
     nums = dict(stats)
     nums.update(log_truncated_share=share, by_ix={k: f"{v[1]}/{v[0]}" for k, v in sorted(by_ix.items())})
@@ -425,8 +438,10 @@ def a04(ctx) -> dict:
                         f"{stats['failed_with_inner_events']}/{stats['failed']}",
             "numbers": nums,
             "follow_up": None if ok else "Add a 'Program data:' log fallback decoder with its own alarm",
-            "notes": "failed_with_inner_events answers red-team TS-6/AR-T1 (do failed txs carry inner-instruction events?). "
-                     "Failed txs are never decoded as trades."}
+            "notes": "TS-6: FAILED_TX_EVENT counts events seen inside failed txs (kept out of every trade count); "
+                     "EVENT_PROVENANCE counts event-shaped calls that fail the same-program / one-level / "
+                     "event_authority test (any > 0 is a FAIL here); NO_INNER_IX counts txs whose inner "
+                     "instructions were not returned (their trades are 'not checkable', never 'missing event')."}
 
 
 # ---- A05 -------------------------------------------------------------------------------------------

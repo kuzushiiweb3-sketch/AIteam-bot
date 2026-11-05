@@ -7,6 +7,8 @@ Key facts used (tags):
     account list = static keys + meta.loadedAddresses.writable + .readonly   [UNVERIFIED from memory
     of the Solana wire format; the offline tests round-trip it and A03/A04 confirm on real data]
   * meta.innerInstructions entries carry base58 `data` and `stackHeight`     [UNVERIFIED; A04 confirms]
+  * an ABSENT or null innerInstructions is recorded as no_inner_ix (TS-6 F4): it means "events can't be
+    seen", never "there were no events". An empty list [] means there really were no inner instructions.
   * Anchor self-CPI events start with the 8-byte prefix e445a52e51cb9a1d     [DERIVED, test-plan s.2]
 """
 
@@ -65,6 +67,7 @@ class Tx:
     version: Any
     raw_encoding: str
     signatures: list = field(default_factory=list)
+    no_inner_ix: bool = False          # meta.innerInstructions absent or null: "can't see events" (TS-6 F4)
 
     @property
     def success(self) -> bool:
@@ -211,6 +214,7 @@ def normalize(result: dict, signature: Optional[str] = None) -> Tx:
     for n, ix in enumerate(top_raw):
         tops.append(Ix(key(ix["programIdIndex"]), [key(a) for a in ix["accounts"]], _ix_data(ix["data"]), n, None, 1))
     inner: dict = {}
+    no_inner = meta.get("innerInstructions") is None
     for group in meta.get("innerInstructions") or []:
         ti = group["index"]
         lst = []
@@ -228,7 +232,7 @@ def normalize(result: dict, signature: Optional[str] = None) -> Tx:
         pre_token_balances=list(meta.get("preTokenBalances") or []),
         post_token_balances=list(meta.get("postTokenBalances") or []),
         lookups=lookups, loaded_writable=lw, loaded_readonly=lr, version=version, raw_encoding=encoding,
-        signatures=list(sigs))
+        signatures=list(sigs), no_inner_ix=no_inner)
 
 
 # ---- helpers over a normalized Tx -------------------------------------------------------------

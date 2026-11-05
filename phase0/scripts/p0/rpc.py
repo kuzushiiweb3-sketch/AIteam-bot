@@ -168,7 +168,7 @@ class RpcClient:
     backoff_base_s: float = 0.5
     backoff_cap_s: float = 30.0
     sleep: Callable[[float], None] = time.sleep
-    clock: Callable[[], float] = time.monotonic
+    clock: Callable[[], float] = lambda: time.monotonic_ns() / 1e9     # intervals from monotonic_ns (TS-12)
     recorder: Optional[Recorder] = None
     limiter: Optional[RateLimiter] = None
     das_limiter: Optional[RateLimiter] = None

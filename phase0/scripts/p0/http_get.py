@@ -83,7 +83,7 @@ class HttpGetClient:
     timeout_s: float = 20.0
     max_retries: int = 3
     sleep: Callable[[float], None] = time.sleep
-    clock: Callable[[], float] = time.monotonic
+    clock: Callable[[], float] = lambda: time.monotonic_ns() / 1e9     # intervals from monotonic_ns (TS-12)
     recorder: Optional[Callable[[dict], None]] = None
     _limiters: dict = field(default_factory=dict, repr=False)
 

@@ -1,12 +1,15 @@
 """Live polling rows over HTTP JSON-RPC: A12 (slot time, processed vs confirmed) and A14 (blockhash life).
 
 A12's websocket leg (slotSubscribe for 1 h) is a Rust probe for crates/feed/examples/, later.
+Intervals use time.monotonic_ns(); the host's clock-sync status is recorded (tech-stack v1.1 TS-12).
 """
 
 from __future__ import annotations
 
 import statistics
 import time
+
+from p0.clock import clock_sync_status, now_ns
 
 
 def _pct(vals, q):
@@ -20,20 +23,23 @@ def a12(ctx) -> dict:
     client = ctx.rpc(fallback_ok=True)
     samples = ctx.call("getRecentPerformanceSamples", [60], client=client) or []
     slot_ms = [s["samplePeriodSecs"] * 1000 / s["numSlots"] for s in samples if s.get("numSlots")]
-    gaps, polls = [], 0
-    end = time.time() + ctx.dur(600, 20)
-    target_interval = 0.2            # 5 polls a second if the rate limit allows (2 calls per poll)
-    while time.time() < end:
-        t0 = time.time()
+    gaps, polls, pair_ms = [], 0, []
+    sync_before = clock_sync_status()
+    duration_ns = int(ctx.dur(600, 20) * 1e9)
+    start = now_ns()
+    target_ns = 200_000_000          # 5 polls a second if the rate limit allows (2 calls per poll)
+    while now_ns() - start < duration_ns:
+        t0 = now_ns()
         p = ctx.call("getSlot", [{"commitment": "processed"}], client=client)
         c = ctx.call("getSlot", [{"commitment": "confirmed"}], client=client)
+        pair_ms.append((now_ns() - t0) / 1e6)
         if isinstance(p, int) and isinstance(c, int):
             gaps.append(p - c)
         polls += 1
-        rest = target_interval - (time.time() - t0)
+        rest = target_ns - (now_ns() - t0)
         if rest > 0:
-            time.sleep(rest)
-    duration = ctx.dur(600, 20)
+            time.sleep(rest / 1e9)
+    duration = (now_ns() - start) / 1e9
     med = statistics.median(slot_ms) if slot_ms else None
     flag = med is not None and med > 300
     return {"outcome": "PARTIAL: HTTP legs measured; slotSubscribe leg is a Rust probe, later",
@@ -41,7 +47,10 @@ def a12(ctx) -> dict:
             "numbers": {"slot_ms_p50": round(med, 1) if med else None, "slot_ms_p95": round(_pct(slot_ms, 0.95), 1) if slot_ms else None,
                         "samples": len(slot_ms), "gap_p50": _pct(gaps, 0.5), "gap_p95": _pct(gaps, 0.95),
                         "gap_max": max(gaps) if gaps else None, "polls": polls,
-                        "achieved_polls_per_s": round(polls / duration, 2), "median_slot_over_300ms": flag},
+                        "achieved_polls_per_s": round(polls / duration, 2), "median_slot_over_300ms": flag,
+                        "poll_pair_ms_p50": round(_pct(pair_ms, 0.5), 1) if pair_ms else None},
+            "provenance": {"interval_clock": "time.monotonic_ns", "clock_sync_before": sync_before,
+                           "clock_sync_after": clock_sync_status()},
             "notes": "The plan asks for 5 polls a second; with 2 calls per poll and the 8 requests/s cap, the achieved "
                      "rate is shown above.",
             "follow_up": "Re-derive every slot-based timer from the median." + (" FLAG: median slot > 300 ms." if flag else "")}
@@ -52,8 +61,10 @@ def a14(ctx) -> dict:
     held = []                 # (blockhash, height at fetch, lastValidBlockHeight)
     checks = {100: [], 130: [], 140: [], 150: [], 155: []}
     windows = []
-    end = time.time() + ctx.dur(3600, 120)
-    while time.time() < end:
+    sync_before = clock_sync_status()
+    duration_ns = int(ctx.dur(3600, 120) * 1e9)
+    start = now_ns()
+    while now_ns() - start < duration_ns:
         lb = (ctx.call("getLatestBlockhash", [{"commitment": "confirmed"}], client=client) or {}).get("value") or {}
         h = ctx.call("getBlockHeight", [{"commitment": "confirmed"}], client=client)
         if lb.get("blockhash") and isinstance(h, int):
@@ -73,4 +84,6 @@ def a14(ctx) -> dict:
             "headline": f"lastValidBlockHeight - height p50 {_pct(windows, 0.5)} blocks; oldest age still valid {max(still_valid) if still_valid else None}",
             "numbers": {"window_blocks_p50": _pct(windows, 0.5), "window_blocks_min": min(windows) if windows else None,
                         "validity_by_age": valid_at, "polls": len(held)},
+            "provenance": {"interval_clock": "time.monotonic_ns", "clock_sync_before": sync_before,
+                           "clock_sync_after": clock_sync_status()},
             "follow_up": "Set the exit-ticket expiry below the measured window, with a margin."}

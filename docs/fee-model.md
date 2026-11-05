@@ -20,6 +20,17 @@
 - Token-account rent is **no longer a fixed 0.00203928 SOL**: Solana is cutting rent in steps (SIMD-0437, §2d).
 - New pump coins are Token-2022 coins.
 
+**What changed in v1.1** (full map in §12):
+- No close inside a sell: a separate clean-up transaction does it (FM-1).
+- The boosted-pool payout cap (§3a, FM-2).
+- T6 is split into T6a and T6b, predicts failures, and covers same-slot, multi-hop, BOOST and failed-in-between cases (FM-3, FM-4, FM-5).
+- Events inside failed transactions never count (TS-6).
+- One fee fallback (FM-7).
+- A wider watch list (FM-6).
+- Chase slippage stated as excluded (FM-8).
+- Integer `m`, SOL-like mints, the default compute limit (FM-9).
+- A column fix in the crash table (E-1).
+
 ---
 
 ## 0. The answer in one table
@@ -652,6 +663,12 @@ Settle the open questions, then freeze the model. The set includes at least 10 f
   - the vault balances in the failed transaction's own `meta.preTokenBalances`;
   - plus `vqr`, the fee buckets and `S`, carried forward from the last successful state change before it in block order.
   - The failed transaction's own events are never used.
+- **The protocol bucket in history (T6a).**
+  - Trade events carry the creator bucket (`creator_fee_unclaimed`) but **not** the protocol bucket. So in T6a, `Q_real` (and with it the 6063 line) is known only where the protocol bucket can be rebuilt:
+    - on pools that were never boosted (no `InitBoostEvent`, `can_boost` false), where σ = 0 and so `protocol_fees = −vqr − creator_fees`; or
+    - by replaying every trade and sweep on the pool, either forward from its creation or backward from today's `Pool` account.
+  - Where it can't be rebuilt, the 6063 line and the protocol-bucket part of P5 are "not decidable in T6a". They are counted, and deferred to T6b, where `Pool` account updates carry both buckets.
+  - A not-decidable case is never counted as a pass.
 
 **Pass criteria. All must hold; there is no tolerance:**
 
@@ -661,7 +678,7 @@ Settle the open questions, then freeze the model. The set includes at least 10 f
 | P2 | `lp_fee`, `protocol_fee`, `coin_creator_fee`, `buyback_fee` equal the event, to the lamport | **500 / 500** |
 | P3 | `quote_amount_in/out`, `user_quote_amount_in/out`, `base_amount_out/in` (and `quote_amount_in_with_lp_fee` / `quote_amount_out_without_lp_fee`) equal the event | **500 / 500** |
 | P4 | **Balance witness**, on *successful* transactions with exactly one PumpSwap trade on that pool: the user's quote-account change, both pool-vault changes and the buyback-recipient change equal the §3 update rules (v1 or v2) | 100%, on ≥ 400 trades |
-| P5 | **Continuity:** for consecutive state changes on one pool, the predicted post-state of *i* equals the observed pre-state of *i+1* (`Q_vault`, `B`, `vqr`, both buckets, `S`). Sweeps and deposits are applied. **New sub-strata (FM-4, TS-6), all inside the ≥ 200:** (a) ≥ 50 pairs **in the same slot**, ordered by transaction index (the `getBlock` order, with the balance chain as witness), core; (b) ≥ 30 pairs with a **`multi_hop_swap`** between them, whose effect on this pool the model **predicts** from the hop's input (taken from the previous hop's event only when that hop is a bonding curve), deferrable; (c) ≥ 30 pairs with a **`boost_buy_and_burn`** between them, applied from the recorded post-state (the BOOST transaction's post-balances in T6a, the account update in T6b, with `BoostBuyAndBurnEvent` as witness, and `S` reduced by `base_amount_burned`), core; (d) ≥ 20 pairs with a **failed PumpSwap trade** between them, which must change nothing, core. If AR-T1 finds failed transactions that carry trade events, ≥ 5 of the (d) pairs must contain one | 100%, on ≥ 200 pairs |
+| P5 | **Continuity:** for consecutive state changes on one pool, the predicted post-state of *i* equals the observed pre-state of *i+1* (`Q_vault`, `B`, `vqr`, the creator bucket, `S`, and the protocol bucket wherever it is known, §7.4). Sweeps and deposits are applied. **New sub-strata (FM-4, TS-6), all inside the ≥ 200:** (a) ≥ 50 pairs **in the same slot**, ordered by transaction index (the `getBlock` order, with the balance chain as witness), core; (b) ≥ 30 pairs with a **`multi_hop_swap`** between them, whose effect on this pool the model **predicts** from the hop's input (taken from the previous hop's event only when that hop is a bonding curve), deferrable; (c) ≥ 30 pairs with a **`boost_buy_and_burn`** between them, applied from the recorded post-state (the BOOST transaction's post-balances in T6a, the account update in T6b, with `BoostBuyAndBurnEvent` as witness, and `S` reduced by `base_amount_burned`), core; (d) ≥ 20 pairs with a **failed PumpSwap trade** between them, which must change nothing, core. If AR-T1 finds failed transactions that carry trade events, ≥ 5 of the (d) pairs must contain one | 100%, on ≥ 200 pairs |
 | P6 | **Network fee (FM-9.3):** `meta.fee == 5,000 × (signatures + precompile signatures) + ceil(cu_price × L ÷ 10⁶)`. Here `L` is the requested limit capped at 1,400,000 or, with no `SetComputeUnitLimit`, the runtime default of §2c. Checked on ≥ 100 transactions: ≥ 30 failed, ≥ 20 with no `SetComputeUnitLimit`. For failed transactions with a tip transfer, the tip account's balance is unchanged | 100% |
 | P7 | All strata minimums are met (or properly deferred, §7.0). The seed, script, population and audit list are unchanged since Step 0 | yes |
 | **P8** | **Outcome (FM-3):** the predicted outcome (success, or the exact failure code) equals the chain's for every trade in F, every trade in N, and every scored success | **100%** |
@@ -684,6 +701,16 @@ Settle the open questions, then freeze the model. The set includes at least 10 f
 ## 8. What can change with no program upgrade, so the monitors must watch it
 
 Each item below is changed by an admin instruction, an off-chain policy, or a Solana feature gate. None needs Pump to redeploy. Detection is by **account subscription with byte-level diffs** (primary) plus the event, where one exists. Several admin instructions emit **no event** (marked "no event"), so account diffs are mandatory. Unless stated, every change is a **class-A alarm**: buys pause, sells continue, and the fee module reloads from the account (never from a constant).
+
+**The monitor, defined (v1.1, FM-6).** It is "a diff of every byte", not a list of chosen fields, of each of these accounts:
+- Pump `Global`; Pump `QuoteControl`;
+- PumpSwap `GlobalConfig`;
+- both `FeeConfig`s (`5PHirr8…`, `8Wf5Ti…`) and the Pump Fees `FeeProgramGlobal` (PDA `["fee-program-global"]`);
+- both programs' incentive accounts, `GlobalVolumeAccumulator` (PDA `["global_volume_accumulator"]` under each program) [VERIFIED-DOC pinned IDL seeds];
+- the three ProgramData accounts (of `6EF8rr…`, `pAMMBay…` and `pfeeUx…`) and the three on-chain IDL accounts (TS-5);
+- while we hold a coin: its mint account and our token account.
+
+Any changed byte raises the alarm, even a byte in a field we don't understand. A field-by-field watch misses exactly the fields nobody thought of. Every change is logged with its slot and its class (prereg §12) within 24 h.
 
 | Where | What can change | Instruction / event | Effect on us |
 |---|---|---|---|
@@ -708,6 +735,22 @@ Each item below is changed by an admin instruction, an off-chain policy, or a So
 | **Program upgrades** of `pAMMBay…`, `pfeeUx…`, `6EF8rr…` | anything | the ProgramData deploy slot | Class A; IDL re-check (DESIGN #11) |
 | **Pump's docs, IDL and SDK** | new instruction versions, appended fields | the README changelog; `raw.githubusercontent.com` (reachable today) | The rule-change reader (DESIGN §2b-6) |
 
+### 8a. Added in v1.1: items v1.0 left out (FM-6)
+All the instruction names below are in today's pinned IDLs [VERIFIED-DOC `phase0/scripts/idl/pump.json`, `pump_amm.json`, `pump_fees.json`, SHA-256 as in `PINNED.json`].
+
+| Where | What can change | Instruction / event | Effect on us | Class |
+|---|---|---|---|---|
+| Pump `Global` | `initial_virtual_quote_reserves`, the curve's starting SOL | `set_virtual_quote_reserves` | Opening pool size, so the opening market cap and fee tier; the §5 example pool | A |
+| Pump `Global` | Curve depth and the quote-mint whitelist | `set_max_curve_depth`, `add_quote_mint`, `remove_quote_mint` | New quote coins, and deeper multi-hop chains whose flow passes through our SOL pools (rival flow we must decode) | A, and **market structure** (prereg §12) |
+| Pump `QuoteControl` | Per-quote-mint controls and starting reserves | `initialize_quote_control`, `add_quote_control_mint`, `remove_quote_control_mint`, `set_quote_control_mint_reserves`, `set_quote_control_admin`, `set_quote_control_reserves_admin` | Which quote coins can launch, and with what reserves | A, market structure |
+| Pump `Global` | Which coin types exist | `toggle_create_v2`, `toggle_mayhem_mode`, `set_mayhem_virtual_params`, `update_holder_reward_config` | Coin types, the mayhem supply rule, the holder-reward use of the creator fee | A |
+| Both programs' `GlobalVolumeAccumulator` | Trading-reward schedule (`start_time`, `end_time`, `token_supply_per_day`, `sol_volumes`) | `admin_update_token_incentives` → `AdminUpdateTokenIncentivesEvent`; trades carry `track_volume` and `current_sol_volume` [VERIFIED-DOC `BuyEvent`, `TradeEvent`] | Rewards invite wash volume, which distorts NF60, rival counts and the crowding labels. **Market structure, not a fee change:** routed to prereg §12 | A, market structure |
+| Pump `Global`; on-chain IDL accounts | Who controls the program and its published IDL | `update_global_authority` → `UpdateGlobalAuthorityEvent`; `admin_set_idl_authority` → `AdminSetIdlAuthorityEvent` | A new controller can change everything in this section. An IDL change may come before a layout change | A |
+| Pump Fees `FeeProgramGlobal` | `disable_flags`, authority | `set_disable_flags`, `set_authority` | Unknown; alarm | A |
+| Pump Fees buyback settings | Buyback authority and claim limits | `initialize_buyback`, `update_buyback_authority`, `update_buyback_claim_rate_limit`, `set_claim_rate_limit` | Where the buyback slice goes, not its size (it stays inside the protocol fee) | C (info) |
+| ProgramData of `6EF8rr…`, `pAMMBay…`, `pfeeUx…` | **Upgrade authority** and the deployed code | the upgradeable loader's `SetAuthority` / `Upgrade` (no Pump event) | Who can change the programs; any upgrade | A |
+| Each **held coin's mint** (Token-2022) | Extension data: transfer-fee settings, transfer-hook program, pause, permanent delegate, default account state | the mint's extension authorities | A fee or hook switched on mid-hold changes or blocks our sell. A pause stops it | A for that coin: exit, sells continue. Request to security: also reject coins whose risky extension *exists with a live authority*, even if it is switched off today |
+
 Two documentation inconsistencies the monitors should not "fix" silently:
 1. The README's GlobalConfig example lists a protocol-fee recipient (`JCRGumoE…`) that FEE_RECIPIENTS.md does not; FEE_RECIPIENTS has `CebN5WGQ…` instead.
 2. The mayhem v2 contradiction (§2b).
@@ -717,19 +760,43 @@ In both cases **the live account is the truth.**
 ---
 
 ## 9. Differences from DESIGN §5b, and requests to teammates
-1. **The fee level is now VERIFIED-DOC.** Assumption A-001 can be upgraded: the tier image was read directly, and the on-chain bytes from the SDK capture were decoded independently (2026-09-08). The split is 0.02 / 0.93 / 0.30, as execution said in Round 2. A-077 (base and priority fee) is now VERIFIED-DOC from Solana's source. The live account still needs FC1.
-2. **Most post-BOOST trades are probably at 1.20%, not 1.25%** [DERIVED, UNVERIFIED]. Paper keeps 1.25% until T6 passes (§6, rule 2), so it stays conservative.
-3. **Crash costs are about 1.0–1.3 points lower than DESIGN §5b** at 0.25–0.5 SOL, because a fallen position pays smaller sell-side fees. **No change to the approved break-even table is needed:** it stays a conservative envelope, and the simulator uses exact per-trade maths. The lead may choose to refresh §5b; that is a documentation change only.
-4. **Rent is a moving number** (SIMD-0437). A-037/A-038 are unaffected; the round-trip rent is 0 because we close the account.
+1. **The fee level is now VERIFIED-DOC.** Assumption A-001 can be upgraded: the tier image was read directly, and the on-chain bytes from the SDK capture were decoded independently (2026-09-08). Red-team decoded the same capture again and it matched. The split is 0.02 / 0.93 / 0.30, as execution said in Round 2. A-077 (base and priority fee) is now VERIFIED-DOC from Solana's source. The live account still needs FC1.
+2. **Most post-BOOST trades are probably at 1.20%, not 1.25%** [DERIVED, UNVERIFIED]. Paper keeps the fallback (§6 rule 2) until T6a passes, so it stays conservative.
+3. **Crash costs are about 1.0–1.3 points lower than DESIGN §5b** at 0.25–0.5 SOL, because a fallen position pays smaller sell-side fees.
+   - **No change to the approved break-even table is needed:** it stays a conservative envelope, and the simulator uses exact per-trade maths. The lead may refresh §5b; that is a documentation change only.
+   - **This must never be used to loosen anything** (FM-8). The figures leave out chase slippage (§6 rule 14).
+4. **Rent is a moving number** (SIMD-0437). The round-trip rent is 0 only once the **separate** clean-up transaction lands (FM-1); until then the deposit is "locked". This changes **DESIGN #8 / EXE-7** ("the final sell closes the account"): the close moves out of the sell. A-018 ("a sell of my current balance limits itself") now rests on §6 rule 11 and test FM-T1.
 5. **Requests:**
    - *To security and data:* add `FeeConfig` and the held mint to the guard's subscriptions (§4).
-   - *To data:* the recorder must store `meta.pre/postTokenBalances`, inner instructions and the compute-budget instructions for every trade (T6 witnesses).
+   - *To data:*
+     - the recorder must store `meta.pre/postTokenBalances`, inner instructions, `meta.err`, the block position (slot and transaction index) and the compute-budget instructions for every trade, **failed ones included** (T6b and P8 witnesses);
+     - the independent migration audit (PR-1) must produce the pool list that T6a and T6b sample from (§7.3);
+     - extend the byte-diff monitor to the accounts listed in §8 (FM-6).
    - *To quant:* adopt §6 rules 3–4 as the simulator's state convention.
-   - *To security:* refuse v2 on mayhem pools until FC9.
+   - *To security:*
+     - refuse v2 on mayhem pools until FC9;
+     - the guard's sell template bans `CloseAccount`, and clean-up has its own template with the destination pinned (§6 rule 11);
+     - add the 6063 pre-check to the guard (§3a);
+     - reject coins whose transfer-fee, transfer-hook, pause or permanent-delegate extension exists with a live authority (§8a);
+     - add the `FAILED_TX_EVENT` decoder rule (§4) to the decoder review.
+   - *To risk-manager:*
+     - `rho_bps` and payout headroom as skip and exit features, with thresholds from FM-T2 (§3a);
+     - confirm partial selling under a payout cap (§3a);
+     - the bad-crash ladder (11.0M lamports) exceeds the 0.01 SOL exit reserve (§2c). Decide what the chase does when the reserve runs out.
+   - *To the lead (other people's files that must point here, so the files agree):*
+     - prereg §2.6 and S4: use §6 rule 2 as the only fee fallback (FM-7, PR-14b);
+     - prereg S6: §2c is the bid table (PR-14c);
+     - prereg S7 and DESIGN #9: live re-quotes every ≤ 2 blocks, paper every 3 slots (PR-14d);
+     - prereg S8: add the pessimistic 0.1 × `m` on non-bundled trades (PR-14a);
+     - DESIGN Gate 0→1: "T6" means **T6a**, and T6b gates the first holdout look and Gate 1→2 (FM-5);
+     - the `phase0/test-plan.md` A09 row should follow §7 (see the script changes listed in the v1.1 hand-off);
+     - the assumption register needs rows for FM-1, FM-2 and TS-6 (AR-1.2, AR-1.3, AR-1.5).
 
 **Open risks.**
-- The SOL buyback path may make the SDK's predictions differ from the chain (§2a). T6 stratum P2 covers it.
-- The BOOST reserve mechanics are not documented in the files we could read (§2e).
+- The SOL buyback path may make the SDK's predictions differ from the chain (§2a). T6 check P2 covers it.
+- The BOOST reserve mechanics, and whether σ is left over after BOOST, are not documented in the files we could read (§2e, §3a). FM-T2 measures it.
+- Whether RPC and Yellowstone return inner instructions for failed transactions is unconfirmed. The rule in §4 is applied either way (AR-T1).
+- Failed trades and multi-hop legs may be thin in 14 days of history. Only the deferrable strata may move to T6b.
 - The Token-2022 account size is [UNVERIFIED].
 
 ---
@@ -744,10 +811,16 @@ In both cases **the live account is the truth.**
 | FC4 | `getMinimumBalanceForRentExemption(165)` and `(170)`; `getAccountInfo` on each SIMD-0437 gate ID (activated or not) | RPC host |
 | FC5 | The data length of 5 token accounts holding `create_v2` coins, and the mint extensions of those coins | RPC host |
 | FC6 | 20 failed PumpSwap transactions that include a Jito or Sender tip transfer: check `meta.fee = base + priority` and that the tip account balance is unchanged | RPC host (or the Chainstack gRPC `failed` filter) |
-| FC7 | The calibration set (§7 Step 1): event field semantics, buyback formula, v2 bucket increments, the exact-SOL-in leftover rule, `InitBoostEvent` / `BoostBuyAndBurnEvent` reconstruction | RPC host |
+| FC7 | The calibration set (§7.2): event field semantics, buyback formula, v2 bucket increments, the exact-SOL-in leftover rule, `InitBoostEvent` / `BoostBuyAndBurnEvent` reconstruction | RPC host |
 | FC8 | The `user_volume_accumulator` data length and rent for 3 active wallets | RPC host |
 | FC9 | Do v2 trades ever succeed on mayhem pools (`is_mayhem_mode` pools with `ix_name = buy_v2`)? | RPC host |
-| T6 | §7 in full | RPC host; later our recorder (Chainstack gRPC) |
+| FC7 (v1.1 additions) | Calibration questions 6 and 7 of §7.2: what each limit check compares; how a `multi_hop_swap` leg changes the pool | RPC host |
+| **T6a** | §7 on 14 days of history, sampled from the PR-T1 audit list. Includes strata F and N, the P5 sub-strata, P8 and P9 | RPC host (`getSignaturesForAddress`, `getTransaction`, `getBlock` with `transactionDetails: "signatures"`) |
+| **T6b** | §7 again, on a fresh 500 from our recorder tape, plus every stratum T6a deferred | none beyond the recorder (Chainstack gRPC host) |
+| **FM-T1** | Find failed mainnet transactions where a `CloseAccount` failed with `NonNativeHasBalance` (token-program error 11, 0xb; log "Non-native account can only be closed if its balance is zero"), especially sell-plus-close transactions on PumpSwap and Token-2022 accounts. Confirm that the sell in the same transaction was undone (its token balances are unchanged from pre to post). Count how often it happens | RPC host |
+| **FM-T2** | §3a: on 100 boosted pools from the audit list, σ, `Q`, `Q_real` and `rho_bps` at t_bend, t_bend + 900 and t_bend + 9,000 slots; σ against the last `boost_vault_remaining`; 6063 failures per pool. Live by `getAccountInfo(pool)` plus the vault at those three times, or from the recorder's account updates in Phase 1 | RPC host; later the Chainstack gRPC host |
+| **AR-T1** | `getTransaction` on 20 failed PumpSwap and 20 failed Pump trades: does `meta.innerInstructions` contain event self-calls (prefix `e445a52e51cb9a1d`)? If yes, at least one real example becomes a T6 hostile fixture (P9) and a P5(d) pair. The §4 rule applies either way | RPC host; later the Chainstack gRPC host (`failed: true`) |
+| **FC10** | For 20 failed PumpSwap trades: are `meta.preTokenBalances` present, and do the vault balances equal the previous successful trade's post-balances in block order? This is the state source for failed trades in §7.4 | RPC host |
 
 `raw.githubusercontent.com` (Pump docs, IDLs, Solana source) and `registry.npmjs.org` (Pump's SDK) already work from this environment.
 
@@ -777,6 +850,7 @@ In both cases **the live account is the truth.**
 **[VERIFIED-DOC] Pump's official SDK** `@pump-fun/pump-swap-sdk` 2.1.0:
 - Source: https://registry.npmjs.org/@pump-fun/pump-swap-sdk/-/pump-swap-sdk-2.1.0.tgz (sha512 `O0ulb5In…h+35ueA==` matched the registry).
 - Files read: `src/sdk/fees.ts`, `util.ts`, `buy.ts`, `sell.ts`, `multiHop.ts`, `offlinePumpAmm.ts`; `src/__tests__/feeConfigMainnetFixture.ts` (the mainnet FeeConfig capture, slot 445186127, 2026-09-08, decoded independently), `boost.spec.ts`, `buyQuoteSimulation.spec.ts`.
+- Re-read for v1.1 (a fresh download of the same 2.1.0 tarball, read only): `src/sdk/fees.ts` `SOL_LIKE_QUOTE_MINTS` and `src/__tests__/fees.spec.ts`; `src/sdk/sell.ts` `sellAmounts`; `src/sdk/offlinePumpAmm.ts` `realQuoteReserves`; `src/__tests__/boost.spec.ts`.
 
 **[VERIFIED-DOC] Solana fee and rent rules:**
 - https://raw.githubusercontent.com/solana-foundation/solana-com/main/apps/docs/content/docs/en/core/fees/fee-structure.mdx
@@ -784,6 +858,15 @@ In both cases **the live account is the truth.**
 - https://raw.githubusercontent.com/anza-xyz/agave/master/fee/src/lib.rs
 - https://raw.githubusercontent.com/anza-xyz/solana-sdk/master/rent/src/lib.rs
 - https://raw.githubusercontent.com/anza-xyz/agave/master/feature-set/src/lib.rs (SIMD-0437 gates)
+- https://raw.githubusercontent.com/anza-xyz/agave/master/program-runtime/src/execution_budget.rs (200,000 / 3,000 / 1,400,000 compute units) (v1.1)
+- https://raw.githubusercontent.com/anza-xyz/agave/master/compute-budget-instruction/src/compute_budget_instruction_details.rs (the default limit when none is set) (v1.1)
+- https://raw.githubusercontent.com/anza-xyz/agave/master/svm/src/transaction_processor.rs (inner instructions are recorded whatever the result) (v1.1)
+
+**[VERIFIED-DOC] SPL Token and Token-2022 source (v1.1, FM-1):**
+- https://raw.githubusercontent.com/solana-program/token/main/program/src/processor.rs (`process_transfer`: only the sender authorises; `process_close_account`: `NonNativeHasBalance`)
+- https://raw.githubusercontent.com/solana-program/token/main/interface/src/error.rs and `instruction.rs` (error 11; Burn = 8, CloseAccount = 9)
+- https://raw.githubusercontent.com/solana-program/token-2022/main/program/src/processor.rs (`process_close_account`: `NonNativeHasBalance`, `TransferFeeAmount` check)
+- https://raw.githubusercontent.com/solana-program/token-2022/main/interface/src/error.rs and `instruction.rs` (the same numbers)
 
 **[VERIFIED-SEARCH]:**
 - Helius Sender tips: https://www.helius.dev/docs/sending-transactions/sender-swqos-only
@@ -797,3 +880,39 @@ In both cases **the live account is the truth.**
 - `team-debate/round2/execution-engineer-response.md` §1a–1d
 - `team-debate/round2/quant-tester-response.md` §1a–1b
 - `docs/assumption-register.md` (A-001, A-002, A-037–A-040, A-065, A-077)
+- `team-debate/phase0/red-team-phase0-review.md` §2 (FM-1 to FM-9), TS-6, PR-13, PR-14, the Seams list (v1.1)
+- `phase0/scripts/idl/PINNED.json` and the three pinned IDLs (v1.1)
+
+---
+
+## 12. v1.1 changelog (red-team Phase 0 review → this file)
+
+| Finding | Severity / blocks | What changed in v1.1 | Where |
+|---|---|---|---|
+| **FM-1** Dust can block a "sell all + close" | High (live); blocks the Phase 3 guard | No sell ever contains a close. A separate clean-up transaction (burn dust, then close to our own pinned wallet) runs after the final sell, with no fee escalation, at most 3 tries, then `CLEANUP_GIVEN_UP`. Paper shows the rent as "locked" until clean-up lands, and charges 6,000 lamports (12,000 pessimistic), or the whole deposit if clean-up is given up. §0 and §5 now include it. Facts verified from SPL Token and Token-2022 source; test FM-T1 added | §2 rows 9 and 17, §2c, §2d, §5, §6 rules 6 and 11, §9.4, §10 |
+| **FM-2** Boosted pools can price in SOL that can't be paid out (6063) | Medium-High; blocks Phase 3 | New §3a. σ = `Q − Q_real` = `vqr + buckets` (verified in the SDK tests). Payable value `V_pay` and `b_max` defined in integers. Quotes, marks and exits use `V_pay`. The simulator applies 6063 at the landing position. The guard pre-checks with headroom, never sends a certain failure, never escalates fees on 6063, and sells in chunks (proposal). Risk features `rho_bps` and payout headroom. Measurement FM-T2 with a decision rule. A 2% safety band until T6 validates the 6063 line | §2b, §2e, §3, §3a, §6 rules 5 and 12, §10 |
+| **FM-3** T6 didn't test the fail-or-succeed line | Medium; **blocks Gate 0→1** | New stratum F (≥ 50 failures: ≥ 15 × 6004, ≥ 15 × 6040, every 6063 found, at least 10), attributed by program and log, not by number alone. New stratum N (≥ 50 near misses within 50 bps). New check **P8**: the outcome is predicted correctly 100% of the time. A defined state source for failed trades. Calibration question 6 | §7.2, §7.3, §7.4 |
+| **FM-4** Continuity skipped the hard cases | Medium; **blocks Gate 0→1** | P5 now requires ≥ 50 same-slot pairs ordered by transaction index (with `getBlock`), ≥ 30 with a `multi_hop_swap` in between (predicted), ≥ 30 with a `boost_buy_and_burn` in between (applied, `S` updated), and ≥ 20 with a failed trade in between (no change). New CPI-trade stratum. Calibration question 7 | §7.2, §7.3, P5 |
+| **FM-5** T6 and Gate 0→1 deadlock | Medium; **blocks Gate 0→1** | Split into **T6a** (history, before Gate 0→1; core strata mandatory, deferrable ones may move on) and **T6b** (recorder tape, before the first holdout look and Gate 1→2; a full fresh 500). The sample comes from the PR-1 independent audit list. New check **P9(a)**: no refusals on audit-sampled trades | §7.0, §7.3, P7, P9, §9 |
+| **FM-6** Gaps in the "changes with no upgrade" watch list | Medium | The monitor is now a byte-for-byte diff of a named account list. New §8a names `set_virtual_quote_reserves`, `set_max_curve_depth`, the quote-mint and QuoteControl instructions, `toggle_create_v2`, `toggle_mayhem_mode`, `set_mayhem_virtual_params`, `update_holder_reward_config`, `admin_update_token_incentives` (both programs, routed to prereg §12 as market structure), `update_global_authority`, `admin_set_idl_authority`, the fee-program global and buyback settings, the ProgramData upgrade authorities, and held coins' Token-2022 extension data | §8, §8a |
+| **FM-7** Two pre-T6 fee fallbacks disagree | Medium | One definition: `max(125, model_bps, recorded lp + protocol + creator bps)`, never adding buyback, cashback or holder rewards. Booked as a separate `fallback_topup` line. Prereg §2.6 and S4 should point here (request to the lead) | §6 rule 2, §9 |
+| **FM-8** The crash-cost table leaves out chase slippage | Low-Medium (honesty) | "Excludes chase slippage" stated in §0, §5 and §9. The simulator adds `chase_slippage` from the tape. Measured chase slippage is reported after V1. "Lower than DESIGN" may never loosen any limit | §0, §5, §6 rule 14, §9.3 |
+| **FM-9.1** `m` not defined in integers | Low | `swing2_bps` and `m_bps` are defined with integer maths and stated rounding. The emergency range is 3–15%, matching prereg | §3 |
+| **FM-9.2** "SOL-like" vs prereg's "wrapped SOL" | Low | The three SOL-like mints are listed (verified in the SDK). Pricing uses SOL tiers for all three. Only wSOL pools are traded; the other two are listed in the exclusion report | §2a, §3 |
+| **FM-9.3** P6 ignored the default compute limit | Low | The runtime default (200,000 per non-builtin instruction plus 3,000 per builtin, cap 1.4M) and precompile signatures were verified in Agave's source. P6 requires ≥ 20 transactions with no limit set | §2c, P6 |
+| **FM-9.4** The 500-trade sample had no defined population | Low | The population is every PumpSwap trade on every U0 pool in the window, taken from the audit list. The two-stage seeded draw is logged, and the audit list's hash is frozen at Step 0 | §7.1, §7.3 |
+| **TS-6** (seam) Events inside failed transactions | High (data) | Rule: an event counts only as a direct child of a PumpSwap instruction in a successful transaction. A failed transaction contributes only its error, fee, arguments, compute-budget instructions and pre-balances. Agave source shows inner instructions are recorded whatever the result, so the risk is real. P5(d), the P9(b) hostile fixtures and AR-T1 enforce it | §4, §6 rule 13, §7.4, P5, P9, §10 |
+| Seam: rent and dust (FM-1 ↔ A-018) | | Rent is 0 only after a separate clean-up; A-018 now rests on §6 rule 11 and FM-T1 | §2d, §9.4 |
+| Seam: fee fallback (PR-14b ↔ FM-7) | | One definition, here | §6 rule 2 |
+| Seam: exit timing (PR-13) | | The landing position takes its timing from the prereg (guard-feed receive times, +2 slots fallback) | §6 rule 3 |
+| Seam: T6 and the gate (FM-5) | | T6a / T6b | §7.0 |
+| PR-14a, c, d (fee-model side) | | Pessimistic sandwich allowance of 0.1 × `m` on non-bundled trades; §2c is the one bid table; live re-quotes every ≤ 2 blocks, paper uses a quote 3 slots old | §2 row 16, §2c, §3, §6 rules 3 and 15 |
+| AR-7 (A-033) | | Expiry counts block height, not slots | §6 rule 5 |
+| **E-1** (found on re-read) | Low (presentation) | The crash table's columns showed buy-side costs at 100% while the totals (correctly) counted them at 70%. The columns are fixed and the counting rule is stated. The totals are unchanged apart from clean-up | §5 |
+| **E-2** (found on re-read) | Low | The bad-crash ladder (11.0M lamports) exceeds the 0.01 SOL exit reserve. Flagged to risk; paper charges the costlier ladder | §2c, §9 |
+
+**Net effect on the headline numbers** (0.1 / 0.25 / 0.5 SOL):
+- calm 3.03 / 3.17 / 3.66% → **3.04 / 3.17 / 3.66%**;
+- crash 6.15 / 3.88 / 3.41% → **6.16 / 3.89 / 3.41%**;
+- the only cause is the 6,000-lamport clean-up transaction.
+- Nothing in the fee tiers, the formulas of v1.0 §3 or the 0.25 SOL worked example (7,916,232 lamports before clean-up) changed.

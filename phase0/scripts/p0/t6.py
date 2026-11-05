@@ -66,8 +66,9 @@ def i(v: Any) -> int:
 
 
 def decode_trades(tx: Tx, pool: str) -> list:
-    """Successful single-pool PumpSwap trades in a tx (TS-6: returns [] for a failed tx)."""
-    if not tx.success:
+    """Successful single-pool PumpSwap trades in a tx. Returns [] for a failed tx (TS-6 F1) and for a tx
+    whose inner instructions were not returned (F4: events can't be seen, so it is not a sample)."""
+    if not tx.success or tx.no_inner_ix:
         return []
     out = []
     trades = [p for p in pump.amm_trades(tx) if pump.named_accounts(p).get("pool") == pool]
@@ -388,6 +389,11 @@ def run(ctx) -> dict:
                             "trades_sampled": len(trades), "calibration": cal["summary"]}
     artifacts = {"seed": seed, "freeze": fr, "model_version": fm.MODEL_VERSION, "calibration_keys": cal_keys,
                  "test_keys": test_keys, "pairs": pairs, "failed": failed_sigs, "calibration": cal}
+    ts6 = {}
+    for t in txs.values():
+        for k, v in pump.event_flags(t).items():
+            ts6[k] = ts6.get(k, 0) + v
+    result_numbers["ts6_tags"] = ts6
     save_trade_fixtures(ctx, trades, txs)
     if cal["chosen"] is None or ctx.opts.t6_stop_after_calibration:
         ctx.store.save_artifacts(ctx.row, artifacts)
