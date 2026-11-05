@@ -20,7 +20,7 @@ Items marked **[PAUL]** need Paul. Never wait on them: use the safe default note
 ## Next: Phase 0 (DESIGN.md §7). Read-only work only; nothing signs or sends
 Work that needs no network and no Paul (do these first, in order):
 - [x] `docs/assumption-register.md`: the ~50 numbered facts the design relies on, each with its tag and the test that settles it
-- [ ] `docs/preregistration.md`: freeze and date the labels, every kill test and pass mark, and the trial families (top-5 ideas, crowding kill, race/no-race rule, stop rule)
+- [x] `docs/preregistration.md`: freeze and date the labels, every kill test and pass mark, and the trial families (top-5 ideas, crowding kill, race/no-race rule, stop rule)
 - [x] `docs/fee-model.md`: the one shared fee model, from Pump's IDL and docs (raw.githubusercontent.com works)
 - [ ] `phase0/test-plan.md`: every network test (D-, F-, P-, RC-, T-, G-, S-, Q-, X- numbers) with its exact domain, expected result and fallback
 - [ ] `docs/tech-stack.md`: choose the programming language and tools for the recorder, decoders and guard (DESIGN.md left this open), comparing at least 2 alternatives; red-team attacks it
