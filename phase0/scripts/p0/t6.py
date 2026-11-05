@@ -121,7 +121,7 @@ def pre_state(tr: dict, sem: fm.Semantics, pool_info: dict) -> fm.PoolState:
                 qx += i(ev.get("quote_amount_out")) - lp
     q_vault = qx if sem.event_quote_kind == "raw" else qx - vqr_pre
     creator_after = i(ev.get("creator_fee_unclaimed"))
-    return fm.PoolState(q_vault=q_vault, vqr=vqr_pre, b=bx, protocol_fees=0,
+    return fm.PoolState(q_vault=q_vault, vqr=vqr_pre, b=bx, protocol_fees=None,     # not in events
                         creator_fees=creator_after - (cr if v2 else 0), supply=i(ev.get("base_supply")),
                         is_mayhem=bool(pool_info.get("is_mayhem_mode")), quote_mint=pool_info.get("quote_mint", pump.WSOL_MINT),
                         canonical=True, coin_creator=ev.get("coin_creator") or fm.DEFAULT_PUBKEY,
@@ -659,6 +659,19 @@ def fail_prediction(ctx, tx: Tx, pool: str, code: int, sem, sched, gcfg, pool_in
                                                    i(ptr_prev[0]["ev"].get("buyback_fee_basis_points")), sem)
         post = fm.post_state(sa, ptr_prev[0]["ix_name"], p, bb, sem)
         args = {a: v for a, v in ptr[0].args.items() if not a.startswith("_")}
+        # witness: the failed tx's own pre-balances of both vaults must equal the rebuilt state
+        na = pump.named_accounts(ptr[0])
+        pre = {}
+        for e in tx.pre_token_balances:
+            idx = e.get("accountIndex")
+            if idx is not None and idx < len(tx.account_keys):
+                try:
+                    pre[tx.account_keys[idx]] = int((e.get("uiTokenAmount") or {}).get("amount"))
+                except (TypeError, ValueError):
+                    pass
+        bv, qv = na.get("pool_base_token_account"), na.get("pool_quote_token_account")
+        if bv in pre and qv in pre and (pre[bv] != post.b or pre[qv] != post.q_vault):
+            return None      # state moved between the two transactions: not evaluable
         r2 = fm.rates(post, sched, bool(gcfg.get("creator_fee_configurable")))
         pred = fm.predict(ptr[0].name, args, post, r2, sem)
     except (fm.QuoteRefused, KeyError, ValueError):

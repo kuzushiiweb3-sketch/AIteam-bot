@@ -1,4 +1,4 @@
-"""PumpSwap fee and price maths, exactly as docs/fee-model.md section 3 (v1.0) writes it.
+"""PumpSwap fee and price maths, exactly as docs/fee-model.md section 3 (v1.1) writes it.
 
 REVIEW NOTES
   * Integers only. No float is used anywhere in this file.
@@ -19,7 +19,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from typing import Optional
 
-MODEL_VERSION = "fee-model-v1.0/py-1"
+MODEL_VERSION = "fee-model-v1.1/py-1"
 
 BPS = 10_000
 U64_MAX = 2 ** 64 - 1
@@ -80,8 +80,8 @@ class PoolState:
     q_vault: int                    # raw quote vault amount (includes fees waiting in buckets)
     vqr: int                        # Pool.virtual_quote_reserves (i128)
     b: int                          # base vault amount
-    protocol_fees: int = 0          # Pool.protocol_fees bucket
-    creator_fees: int = 0           # Pool.creator_fees bucket
+    protocol_fees: Optional[int] = 0   # Pool.protocol_fees bucket; None = unknown (events do not carry it)
+    creator_fees: Optional[int] = 0    # Pool.creator_fees bucket; None = unknown
     supply: int = 0                 # base mint supply (ignored for mayhem pools)
     is_mayhem: bool = False
     quote_mint: str = SOL_LIKE_QUOTES[1]
@@ -98,8 +98,31 @@ class PoolState:
         return q
 
     @property
-    def q_real(self) -> int:
+    def buckets_known(self) -> bool:
+        return self.protocol_fees is not None and self.creator_fees is not None
+
+    @property
+    def q_real(self) -> Optional[int]:
+        """What sells can be paid from; None when the fee buckets are unknown."""
+        if not self.buckets_known:
+            return None
         return self.q_vault - self.protocol_fees - self.creator_fees
+
+    @property
+    def sigma(self) -> Optional[int]:
+        """Boost reserve = Q - Q_real (0 on unboosted pools) [fee-model v1.1 s.3]."""
+        qr = self.q_real
+        return None if qr is None else self.q - qr
+
+    def check(self) -> None:
+        """fee-model v1.1 s.3: refuse to quote if Q == 0, B == 0, sigma < 0 or Q_real < 0.
+
+        sigma and Q_real are only checked when both fee buckets are known (from the Pool account).
+        """
+        if self.q == 0 or self.b == 0:
+            raise QuoteRefused("Q or B is zero")
+        if self.buckets_known and (self.q_real < 0 or self.sigma < 0):
+            raise QuoteRefused(f"sigma {self.sigma} or Q_real {self.q_real} is negative")
 
 
 @dataclass(frozen=True)
@@ -217,9 +240,8 @@ def buyback_fee(protocol_fee: int, amount: int, bb_bps: int, sem: Semantics) -> 
 # ---- the three trade shapes -------------------------------------------------------------------
 def buy_exact_out(state: PoolState, b: int, r: Fees) -> dict:
     """buy / buy_v2 (base_amount_out = b) [VERIFIED-DOC buy.ts buyBaseInput]"""
+    state.check()
     q, bb = state.q, state.b
-    if q == 0 or bb == 0:
-        raise QuoteRefused("Q or B is zero")
     if b >= bb:
         return {"fail": 6016}
     q_in = ceil_div(q * b, bb - b)
@@ -230,9 +252,8 @@ def buy_exact_out(state: PoolState, b: int, r: Fees) -> dict:
 
 def buy_exact_in(state: PoolState, x: int, r: Fees, sem: Semantics) -> dict:
     """buy_exact_quote_in(_v2) (spendable_quote_in = x) [VERIFIED-DOC buy.ts exactQuoteInFees/buyQuoteInput]"""
+    state.check()
     q, bb = state.q, state.b
-    if q == 0 or bb == 0:
-        raise QuoteRefused("Q or B is zero")
     net0 = x * BPS // (BPS + r.total)
     if net0 <= 0:
         return {"fail": "budget_does_not_cover_fees"}
@@ -246,16 +267,20 @@ def buy_exact_in(state: PoolState, x: int, r: Fees, sem: Semantics) -> dict:
 
 
 def sell_exact_in(state: PoolState, b: int, r: Fees) -> dict:
-    """sell / sell_v2 (base_amount_in = b) [VERIFIED-DOC sell.ts sellBaseInput/sellAmounts]"""
+    """sell / sell_v2 (base_amount_in = b) [VERIFIED-DOC sell.ts sellBaseInput/sellAmounts]
+
+    The 6063 line (payout capped at Q_real) is only decided when the buckets are known; otherwise
+    `fails_6063` is None ("not decidable from this state").
+    """
+    state.check()
     q, bb = state.q, state.b
-    if q == 0 or bb == 0:
-        raise QuoteRefused("Q or B is zero")
     q_out = q * b // (bb + b)
     lp, pr, cr = fee(q_out, r.lp), fee(q_out, r.protocol), fee(q_out, r.creator)
     leaves = q_out - lp
     receive = q_out - lp - pr - cr
     return {"q_out": q_out, "lp": lp, "pr": pr, "cr": cr, "leaves": leaves, "receive": receive, "base_in": b,
-            "quote_amount_out_without_lp_fee": leaves, "fails_6063": state.q_real < leaves}
+            "quote_amount_out_without_lp_fee": leaves,
+            "fails_6063": None if state.q_real is None else state.q_real < leaves}
 
 
 def predict(ix_name: str, args: dict, state: PoolState, r: Fees, sem: Semantics) -> dict:
@@ -281,6 +306,10 @@ def predict(ix_name: str, args: dict, state: PoolState, r: Fees, sem: Semantics)
 
 
 # ---- state updates (fee-model s.3 "state update after our own (or any) trade") ------------------
+def _add(bucket: Optional[int], amount: int) -> Optional[int]:
+    return None if bucket is None else bucket + amount
+
+
 def post_state(state: PoolState, ix_name: str, p: dict, bb: int, sem: Semantics) -> PoolState:
     v2 = ix_name.endswith("_v2")
     is_buy = ix_name.startswith("buy")
@@ -293,15 +322,16 @@ def post_state(state: PoolState, ix_name: str, p: dict, bb: int, sem: Semantics)
             q_vault = state.q_vault + q_in + lp + kept_protocol + cr
             vqr = state.vqr - kept_protocol - cr
             return replace(state, q_vault=q_vault, vqr=vqr, b=b_new,
-                           protocol_fees=state.protocol_fees + kept_protocol, creator_fees=state.creator_fees + cr)
+                           protocol_fees=_add(state.protocol_fees, kept_protocol),
+                           creator_fees=_add(state.creator_fees, cr))
         return replace(state, q_vault=state.q_vault + q_in + lp, b=b_new)
     # sell
     b_new = state.b + p["base_in"]
     if v2:
         paid_out = pr - kept_protocol          # the buyback slice (or 0 if the bucket keeps all of pr)
         return replace(state, q_vault=state.q_vault - (p["receive"] + paid_out), vqr=state.vqr - kept_protocol - cr,
-                       b=b_new, protocol_fees=state.protocol_fees + kept_protocol,
-                       creator_fees=state.creator_fees + cr)
+                       b=b_new, protocol_fees=_add(state.protocol_fees, kept_protocol),
+                       creator_fees=_add(state.creator_fees, cr))
     return replace(state, q_vault=state.q_vault - p["leaves"], b=b_new)
 
 
@@ -327,9 +357,9 @@ def sweep(state: PoolState, amount: int, bucket: int) -> PoolState:
     """sweep_protocol_fee (bucket 0) / sweep_creator_fee (bucket 1): Q unchanged."""
     if bucket == 0:
         return replace(state, q_vault=state.q_vault - amount, vqr=state.vqr + amount,
-                       protocol_fees=state.protocol_fees - amount)
+                       protocol_fees=_add(state.protocol_fees, -amount))
     return replace(state, q_vault=state.q_vault - amount, vqr=state.vqr + amount,
-                   creator_fees=state.creator_fees - amount)
+                   creator_fees=_add(state.creator_fees, -amount))
 
 
 # ---- network fee (fee-model s.2c; check P6) ---------------------------------------------------

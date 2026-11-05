@@ -410,7 +410,7 @@ All the event field names above are [VERIFIED-DOC pump_amm.json]. Events are emi
 
 ---
 
-## 5. Worked examples (all integers computed with `bc` this session; [DERIVED])
+## 5. Worked examples (all integers; v1.0 computed with `bc`, v1.1 recomputed with exact integer and fraction arithmetic in Python; [DERIVED])
 
 **Inputs, all [UNVERIFIED] illustrations until Phase 1 replaces them with recorded states:**
 - Entry pool: `Q` = 85,000,000,000 lamports, `B` = 206,900,000,000,000 (206.9M tokens), `S` = 10¹⁵, so market cap = 410.83 SOL, which is **tier 0** (2 / 93 / 30 bps).
@@ -430,34 +430,43 @@ All the event field names above are [VERIFIED-DOC pump_amm.json]. Events are emi
 | Sell fees | 3,068,594 |
 | **Received** | 242,418,768 |
 | Sell impact | 711,042 |
-| Network (125,000 + 210,000) | 335,000 |
-| **Total cost** | **7,916,232 = 3.17% = $0.79** |
+| Network (125,000 buy + 210,000 sell + 6,000 clean-up) | 341,000 |
+| **Total cost** | **7,922,232 = 3.17% = $0.79** |
+
+(v1.0 total, without the clean-up transaction: 7,916,232. Red-team recomputed that figure independently and got the same result.)
 
 **Calm exit (exit price = entry price):**
 
-| Stake | Pool fees (both legs) | Price impact (both legs) | Network + tips | Sandwich | **Total SOL** | **% of stake** | **USD** |
+| Stake | Pool fees (both legs) | Price impact (both legs) | Network + tips + clean-up | Sandwich | **Total SOL** | **% of stake** | **USD** |
 |---|---|---|---|---|---|---|---|
-| 0.1 | 0.002466 | 0.000229 | 0.000335 | 0 | **0.003030** | **3.03%** | $0.30 |
-| 0.25 | 0.006155 | 0.001426 | 0.000335 | 0 | **0.007916** | **3.17%** | $0.79 |
-| 0.5 | 0.012275 | 0.005672 | 0.000335 | 0 | **0.018282** | **3.66%** | $1.83 |
+| 0.1 | 0.002466 | 0.000229 | 0.000341 | 0 | **0.003036** | **3.04%** | $0.30 |
+| 0.25 | 0.006155 | 0.001426 | 0.000341 | 0 | **0.007922** | **3.17%** | $0.79 |
+| 0.5 | 0.012275 | 0.005672 | 0.000341 | 0 | **0.018288** | **3.66%** | $1.83 |
 
 **Crash exit:**
 - The price falls 30% before we sell: `Q` = 71.12 SOL, `B` = 247.29M tokens, market cap ≈ 288 SOL, so still tier 0.
-- The sell runs the escalated ladder (0.004140 SOL of network fees for the round trip), and the sandwich allowance is 0.2% of proceeds.
+- The sell runs the escalated ladder. Network for the round trip: 0.004140 SOL plus 0.000006 for clean-up = 0.004146. The sandwich allowance is 0.2% of proceeds.
 - The −30% fall itself (0.03 / 0.075 / 0.15 SOL) is the trade result and is **not** in these numbers.
+- **How a crash cost is counted.** Cost = (70% of the stake) − (what we receive, less the sandwich allowance) + network. That is, cost against a trade with no friction that rides the same fall.
+  - The tokens our buy-side fees and impact cost us would have fallen 30% too. So in a crash, **buy-side costs count at 70%** and sell-side costs count in full.
+  - **Fixed in v1.1 (E-1, found on re-reading):** the v1.0 table used this rule for the totals, but showed buy-side costs at 100% in the columns, so the columns didn't add up to the totals (0.1 SOL: 0.006555 against 0.006150). The totals were right. The columns below now add up.
+- **Chase slippage is not included** (§6 rule 14, FM-8).
 
-| Stake | Pool fees | Price impact | Network + tips | Sandwich | **Total SOL** | **% of stake** | **USD** |
+| Stake | Pool fees (buy at 70%) | Price impact (buy at 70%) | Network + tips + clean-up | Sandwich | **Total SOL** | **% of stake** | **USD** |
 |---|---|---|---|---|---|---|---|
-| 0.1 | 0.002097 | 0.000182 | 0.004140 | 0.000136 | **0.006150** | **6.15%** | $0.62 |
-| 0.25 | 0.005235 | 0.001132 | 0.004140 | 0.000340 | **0.009706** | **3.88%** | $0.97 |
-| 0.5 | 0.010448 | 0.004505 | 0.004140 | 0.000676 | **0.017061** | **3.41%** | $1.71 |
+| 0.1 | 0.001727 | 0.000147 | 0.004146 | 0.000136 | **0.006156** | **6.16%** | $0.62 |
+| 0.25 | 0.004310 | 0.000917 | 0.004146 | 0.000340 | **0.009713** | **3.89%** | $0.97 |
+| 0.5 | 0.008597 | 0.003650 | 0.004146 | 0.000676 | **0.017068** | **3.41%** | $1.71 |
 
-**Sensitivities (same method):**
+(The columns are rounded to 6 decimals. The exact 0.5 SOL total is 17,068,364 lamports.)
+
+**Sensitivities (same method, clean-up included):**
 - **−50% crash:** 5.57% / 3.23% / 2.64% of stake.
-- **"Bad crash" network** (0.01115 SOL), 0.25 SOL, −30%: **6.69%**.
-- **Tier 1 pool** (illustrative post-BOOST: `Q` 102.6 SOL, `B` 171.41M, `S` 964.51M, so market cap 577 SOL and 1.20%/side), calm: **2.89% / 2.97% / 3.37%**.
-- **"Impact persists" (pure pool maths)**, 0.25 SOL calm: **2.60%**, which is only fees plus network. This is an upper bound on how cheap a round trip can be, never used for decisions.
-- **Token account left open** (not our plan): add the rent in §2d, e.g. +0.61% at 0.25 SOL at 5,080 lamports/byte.
+- **"Bad crash" network** (0.01115 SOL + clean-up), 0.25 SOL, −30%: **6.69%**.
+- **Tier 1 pool** (illustrative post-BOOST: `Q` 102.6 SOL, `B` 171.41M, `S` 964.51M, so market cap 577 SOL and 1.20%/side), calm: **2.90% / 2.98% / 3.37%**.
+- **"Impact persists" (pure pool maths)**, 0.25 SOL calm: **2.61%**, which is only fees plus network. This is an upper bound on how cheap a round trip can be, never used for decisions.
+- **Pessimistic clean-up** (one dusted attempt fails first): +6,000 lamports, e.g. +0.006% at 0.1 SOL.
+- **Clean-up given up** (the account stays open, FM-1): add the rent in §2d, e.g. +0.61% at 0.25 SOL at 5,080 lamports/byte.
 
 **Reading the numbers.**
 - Pump's fee is about 2.1–2.5 points of every round trip.
@@ -465,69 +474,184 @@ All the event field names above are [VERIFIED-DOC pump_amm.json]. Events are emi
 - In calm exits, bigger bets cost more per SOL, because our own price impact grows with size.
 - In crash exits, smaller bets cost more per SOL, because the escalated network fees are fixed amounts.
 - The 0.1 SOL canary size pays about 6% in a crash. That's acceptable for a measurement run, never for a strategy.
+- **None of these figures includes chase slippage** (FM-8). After test V1, the measured chase slippage is reported next to this table. Until then, a crash cost here is a floor, not an estimate.
 
 ---
 
 ## 6. Rules for the simulator, backtests, strategy and guard
 1. **One module, one version.** Every fill, quote and min-out uses this maths. Each paper trade records the fee-model version and the slot of the `FeeConfig` / `GlobalConfig` snapshot it used.
-2. **Before T6 passes**, paper charges `max(model, 125 bps)` per side (the tier-0 split 2/93/30) and every report is labelled **"fee model unproven"** (QNT-R §1b). After T6, the live tier applies.
+2. **The one fee fallback (FM-7). Prereg §2.6 and S4 should point here instead of defining their own.** It applies before T6a passes, and after T6a for any trade in a stratum deferred to T6b (§7). Per side, paper charges:
+   - `charged_bps = max(125, model_bps, recorded_bps)`, where
+     - `model_bps` = lp + protocol + creator from §3 `rates()`;
+     - `recorded_bps` = `lp_fee_basis_points + protocol_fee_basis_points + coin_creator_fee_basis_points` of the latest **successful** same-direction trade on that pool (0 if there is none).
+   - **Never added:**
+     - `buyback_fee_basis_points`, which sits *inside* the protocol fee (§2a);
+     - `cashback_fee_basis_points` and `holder_rewards_bps`, which are the creator fee sent somewhere else (§2 row 3; HOLDER_REWARDS_README).
+     - Adding them would double-count on some coin types only. A filter that merely avoids those coins would then look like an edge (PR-14b).
+   - The extra over the model is booked as its own ledger line, `fallback_topup = fee(amount, charged_bps − model_bps)`, so it can be removed exactly once T6 passes.
+   - Labels: "fee model unproven" before T6a; "T6b pending" on deferred strata.
+   - After T6 passes, the live tier applies with no floor. A pool where `recorded_bps > model_bps` is a two-witness mismatch (a class-A alarm, §7).
 3. **Position in the block** (QNT-2): our fill uses the recorded state *after* every same-direction trade in our landing slot and *before* the opposite-direction ones. The tier and the 6063/6004/6040 checks are evaluated on that state.
+   - **Timing comes from the preregistration:** landing slot = decision time + landing delay (S1). Exit decisions use the **guard feed's** receive times, with a fallback of +2 slots until they are measured (PR-13).
+   - **Quote age:** each sell attempt is priced from a quote 3 slots old (S7, §3).
 4. **Impact persistence.**
    - **Base and pessimistic views:** the exit is priced on the *recorded* pool state at the exit position, with our tokens sold into it. Our earlier buy is **not** added to the recorded state.
    - **Optimistic view:** our trades are injected and later recorded trades are replayed on top. It is shown only as an upper bound.
-5. **Failures are charged.** Every landed failure pays base + priority. A dropped bundle or expired transaction pays 0. A failed sell then follows the 2-block chase (DESIGN #9).
-6. **Rent.** The deposit is charged on the buy and refunded on the closing sell. An open position shows it as "locked", not "lost". The amount comes from the live Rent sysvar at the simulated slot.
+5. **Failures are charged, and handled by type.**
+   - Every landed failure pays base + priority, but never the tip (FC6 checks this). A dropped bundle pays 0.
+   - **Expiry counts blocks, not slots** (AR-7). A transaction that hasn't landed expires once the block height passes its blockhash's `lastValidBlockHeight` (about 150 blocks). Skipped slots make that window longer in wall time. An expired transaction pays 0.
+   - After a failure, the chase (DESIGN #9) depends on the cause:
+     - **6004 or 6040** (the price moved past our limit): re-quote and retry under the `m` rules;
+     - **not landed or expired:** step up the priority fee and tip ladder (§2c);
+     - **6063** (payout cap): never raise fees; follow §3a;
+     - **6021** (sells switched off): wait, and be first out when they reopen (EXE-5).
+6. **Rent (FM-1).** The deposit is charged on the buy and shown as **"locked"**. It is refunded only when the separate clean-up transaction lands (rule 11).
+   - A flat position whose account is still open shows "rent locked", not "lost".
+   - If clean-up is given up, the deposit is booked as lost.
+   - The amount comes from the live Rent sysvar at the simulated slot.
 7. **Rebates count as 0.** Cashback and holder rewards never improve paper P&L.
 8. **Cost ledger.** Every trade logs each component separately:
-   - LP, protocol, creator and buyback fees;
+   - LP, protocol, creator and buyback fees, and any `fallback_topup`;
    - buy and sell impact;
    - base fee, priority fee and each tip;
-   - each failed attempt;
-   - rent locked and refunded;
-   - the sandwich allowance.
+   - each failed attempt, with its cause (6004, 6040, 6063, 6021, not landed, expired);
+   - rent locked and refunded; the clean-up fee and clean-up failures;
+   - the sandwich allowance;
+   - `chase_slippage` (rule 14) and every `PAYOUT_CAPPED` episode (§3a).
 
    USD is added with the SOL price at trade time, for reports only.
-9. **Integers only** in the money path; floats in reports only. The module refuses to quote on unknown account lengths, an unknown `ix_name`, `Q == 0` or `B == 0`, which raises a class-A alarm.
+9. **Integers only** in the money path; floats in reports only. That includes `m` (§3). The module refuses to quote on unknown account lengths, an unknown `ix_name`, `Q == 0`, `B == 0`, `σ < 0` or `Q_real < 0`, and raises a class-A alarm.
 10. **The guard quotes from its own reads** of the same accounts (C9), never from numbers sent by the bot.
+11. **No close inside a sell (FM-1). This is a rule for both the Phase 3 guard and the paper simulator.**
+    - **Guard:**
+      1. No sell transaction of any kind (calm, emergency, chase or chunk) may contain a `CloseAccount` (instruction 9 in both SPL Token and Token-2022 [VERIFIED-DOC both `instruction.rs`]), or any other instruction that needs the account to end at zero. The guard refuses to sign such a transaction.
+      2. A sell sells a fixed `base_amount_in`: the balance the guard itself read at its latest slot, or the chunk being sold. Tokens that arrive later just stay behind; they can't make the sell fail.
+      3. Clean-up is its **own** transaction, built only after the final sell is confirmed and the guard has re-read the account. It contains only: `SetComputeUnitLimit`, `SetComputeUnitPrice`, a `Burn` (instruction 8) of exactly the balance read (only if it is above 0), and `CloseAccount` with the destination **pinned to our own wallet**. No tip, the normal sender, never urgent.
+      4. Clean-up never raises its fees. It is allowed at most 3 landed failures per account, at least 10 blocks apart. After that the account is left open and logged as `CLEANUP_GIVEN_UP`, and it is retried once in a weekly batch that includes only accounts read at exactly 0.
+      5. Buys never close anything. The persistent wSOL account is never closed in a trade.
+      6. Any balance above 0 found after the final sell is logged as `UNSOLICITED_INFLOW` (amount, sender, slot) for security: someone may be watching the wallet.
+    - **Simulator:**
+      1. Simulated sells never include a close. After the final sell lands, the position becomes `FLAT_RENT_LOCKED`.
+      2. Clean-up is simulated as its own transaction, sent at least 1 block after the sell lands, through the normal landing model. It costs 5,000 base + 1,000 priority = 6,000 lamports (limit 20,000 compute units × 50,000 micro-lamports per unit) until X2 measures its real compute. When it lands, the deposit is refunded.
+      3. Pessimistic view: the first clean-up attempt fails as if dusted (6,000 lamports more).
+      4. If 3 attempts fail, the deposit is booked as lost.
+12. **The payout cap (FM-2):**
+    - quotes, marks and exits use the payable value `V_pay`;
+    - the simulator applies 6063 at the landing position;
+    - the guard never sends a sell it predicts will hit 6063;
+    - details in §3a.
+13. **Events from failed transactions never count (TS-6).** The rule is in §4. It covers the simulator's replay, the research tables, the rival counts, the labels and T6 itself.
+14. **Chase slippage is a cost (FM-8).**
+    - The tables in §0 and §5 leave out the further price fall while a sell is chasing: the arrival delay, plus a margin of up to 15%.
+    - The simulator adds it from the replayed tape at each attempt's landing position and logs it as `chase_slippage`.
+    - After V1, measured chase slippage is reported next to the §0 and §5 tables.
+    - The fact that crash costs here are lower than DESIGN §5b's must never be used to loosen any limit, margin or stop.
+15. **Sandwich allowance (§2 row 16; PR-14a).**
+    - Base view: 0.2% of proceeds on crash sells, 0 on other trades (prereg S8).
+    - Pessimistic view: also 0.1 × `m` on every trade sent outside a Jito bundle, until P14 measures it.
+    - Family V tests score with equal allowances in both arms (prereg PR-11).
 
 ---
 
-## 7. T6: the validation procedure (Gate 0 → 1)
+## 7. T6: the validation procedure, in two parts (T6a before Gate 0 → 1, T6b on our own recordings)
 
-**Goal.** Prove that this model reproduces real PumpSwap trades **exactly, to the lamport**, before any paper result counts.
+**Goal.** Before any paper result counts, prove that this model:
+- reproduces real PumpSwap trades **exactly, to the lamport**; and
+- **predicts exactly which trades fail, and why** (FM-3). Whether a sell lands depends on the fail-or-succeed line, not only on the amounts.
 
-**Step 0: freeze first.** Commit three things before looking at any trade, dated, in `docs/preregistration.md`:
+**In plain words.** We take hundreds of real past trades, and dozens of real failed ones, and check that our maths gives the chain's answer every time, with no tolerance at all.
+
+### 7.0 Why two parts (FM-5)
+v1.0 said a stratum that history can't fill "waits for the recorder". But the recorder starts only after Gate 0→1, and Gate 0→1 needs T6. That is a deadlock. v1.1 splits the test:
+
+| Part | Data | Must pass before | What it unlocks |
+|---|---|---|---|
+| **T6a** | 14 days of history fetched read-only over RPC in Phase 0, scored offline | **Gate 0→1** (DESIGN's "T6" line means T6a) | The recorder starts. Paper uses the model, not the fallback, on every stratum T6a validated |
+| **T6b** | Our own recorder tape, decoded by the production path (gRPC → recorder → decoder → `fees`) | **The first scheduled holdout look**: no holdout day's paper result counts until T6b passes. It is also a Gate 1→2 condition. Target: recorder day 10. Prereg G8 already blocks Gate v2 without it | Holdout paper results can be scored |
+
+- **T6a** covers every stratum that history can fill.
+  - Strata marked **core** below must be filled in T6a. If one can't be, Gate 0→1 fails; first try extending the history to 28 days.
+  - Strata marked **deferrable** that history can't fill are recorded in `phase0/results.md` with the count found, and move to T6b.
+  - Nothing is waived: a deferred stratum must pass in T6b.
+- **Between T6a and T6b:**
+  - any paper trade that falls in a deferred stratum is charged the conservative fallback: §6 rule 2 for fee strata, and the 2% payout band of §3a for the 6063 line;
+  - every report carries "fee model: T6a passed, T6b pending".
+- **T6b is a full re-run, not only the deferred strata.** It uses a fresh 500 with a new seed, drawn from the recorder tape. That tests the production decoder, not just the Phase 0 harness.
+- **If T6b fails:**
+  - record, fix, bump the version and re-run T6b on a fresh sample;
+  - then re-simulate every paper day with the new version before any look. The raw tape makes this possible.
+
+### 7.1 Step 0: freeze first
+Before looking at any trade, commit these, dated, in `docs/preregistration.md`:
 - the selection script and its random seed;
 - the model version;
-- the pass criteria below.
+- the pass criteria below;
+- the population definition and the SHA-256 of the audit pool list used as the sampling frame (§7.3).
 
-**Step 1: calibration set (50 trades, not scored).** Settle the open semantics, then freeze the model. FC7 answers:
+### 7.2 Step 1: calibration set (50 trades, not scored)
+Settle the open questions, then freeze the model. The set includes at least 10 failed trades, also not scored. FC7 answers:
 1. Are the event reserve fields pre-trade or post-trade, and raw vault or effective?
 2. Is `event.virtual_quote_reserves` pre-trade or post-trade?
 3. What is the buyback formula and its rounding, and does `protocol_fees` grow by `pr` or by `pr − buyback`?
 4. Does `buy_exact_quote_in_v2` leave unspent lamports with the user, or spend the whole budget?
-5. How is the boost state set?
+5. How is the boost state set? Is `real_quote_reserves_after` the raw vault or `Q_real`?
+6. **New (FM-3):** which exact amount does each limit check compare, and is the comparison strict?
+   - 6004 on exact-out buys: `pay` with all three fees?
+   - 6004 on sells: `receive`?
+   - 6040: `b_out`?
+7. **New (FM-4):** how does a `multi_hop_swap` leg change this pool's `Q`, `B`, `vqr` and buckets? Does it use the "whole budget spent" variant (§3)?
 
-**Step 2: the test set.**
-- **500 different trades** chosen by the frozen seed, none of them from the calibration set.
-- They come from canonical, SOL-quoted, non-mayhem PumpSwap pools, across **≥ 7 days and ≥ 100 pools**.
-- The trades are fetched read-only: `getSignaturesForAddress(pool)`, then `getTransaction(…, maxSupportedTransactionVersion: 0)`. In Phase 1 they come from our own recorder.
+### 7.3 Step 2: the population and the sample (FM-5, FM-9.4)
+- **Population.** Every PumpSwap trade instruction, top level or reached by CPI, successful or failed, during the window, on every **U0 pool**: canonical, wSOL-quoted (§2a), non-mayhem.
+  - **The pool list comes from the independent migration audit** (prereg PR-1, test PR-T1), not from pools our own decoder found.
+  - A pool our decoder doesn't recognise still enters the sample. If the model then refuses to quote one of its trades, that counts as a T6 failure (check P9).
+- **Window.**
+  - T6a: the 14 days before the run, with ≥ 7 days and ≥ 100 pools in the sample.
+  - T6b: the first ≥ 7 green recorder days.
+- **Draw.** With the frozen seed:
+  - pools uniformly from the audit list, then trades uniformly within each drawn pool;
+  - then top-up draws, from the same population, for any stratum still below its minimum;
+  - the draw order and every rejected draw are logged.
+- **Fetching (T6a), read-only:**
+  - `getSignaturesForAddress(pool)` (its `err` field picks out failed transactions cheaply), then `getTransaction(…, maxSupportedTransactionVersion: 0)`;
+  - for every slot with ≥ 2 transactions on one sampled pool, `getBlock(slot, transactionDetails: "signatures")` gives the order inside the slot;
+  - T6b takes the order from the recorder.
 - **Minimum strata** (one trade can count in several):
 
-| Stratum | Minimum |
-|---|---|
-| Trades **crossing a fee-tier boundary** (pre-trade and post-trade market cap in different tiers, or pre-trade market cap within ±1% of a threshold), with both sides of 420 SOL represented | ≥ 50 |
-| v2 trades (`buy_v2`, `buy_exact_quote_in_v2`, `sell_v2`) | ≥ 50 |
-| v1 trades, including ≥ 25 v1 buys on SOL pools (the SDK's warned buyback path) | ≥ 50 |
-| Sells | ≥ 100 |
-| Buys, of which ≥ 50 are exact-SOL-in | ≥ 100 |
-| Trades with `vqr < 0` (fees waiting) | ≥ 30 |
-| Trades with `can_boost == true` (boost reserves present) | ≥ 30 |
-| Trades at tier ≥ 2 (market cap ≥ 1,470 SOL) | ≥ 20 |
+| Stratum | Minimum | In T6a |
+|---|---|---|
+| Trades **crossing a fee-tier boundary** (pre-trade and post-trade market cap in different tiers, or pre-trade market cap within ±1% of a threshold), with both sides of 420 SOL represented | ≥ 50 | core |
+| v2 trades (`buy_v2`, `buy_exact_quote_in_v2`, `sell_v2`) | ≥ 50 | core |
+| v1 trades, including ≥ 25 v1 buys on SOL pools (the SDK's warned buyback path) | ≥ 50 | core |
+| Sells | ≥ 100 | core |
+| Buys, of which ≥ 50 are exact-SOL-in | ≥ 100 | core |
+| Trades with `vqr < 0` (fees waiting) | ≥ 30 | core |
+| Trades with `can_boost == true` (boost reserves present) | ≥ 30 | core |
+| Trades at tier ≥ 2 (market cap ≥ 1,470 SOL) | ≥ 20 | deferrable |
+| **New:** trades reached **by CPI** (routers, Pump's `multi_hop_curve_swap`), not top level | ≥ 50 | core |
+| **New, F: failed trades** with 6004, 6040 or 6063 (FM-3) | ≥ 50 in total: ≥ 15 × 6004 and ≥ 15 × 6040; plus **every** 6063 failure found in the window, at least 10 | 6004 and 6040: core. 6063: deferrable, and core in T6b if FM-T2 finds leftover σ |
+| **New, N: near misses** (FM-3): successful trades whose limit was within 0.5% (50 bps) of the amount actually checked | ≥ 50, including ≥ 15 buys and ≥ 15 sells | core |
 
-- Multi-hop, mayhem and cashback trades are reported separately and do not count toward the gate.
+- **What counts as a failure in F.** The failure must be attributable to the trade:
+  - `meta.err = InstructionError[i, Custom(c)]`, with c in {6004, 6040, 6063};
+  - PumpSwap's own log line for that trade reads "failed: custom program error: 0x1774" (6004), "0x1798" (6040) or "0x17af" (6063);
+  - the logs are not truncated.
+  - **Error numbers are per program.** In the Pump bonding-curve program, 6004 means `MintDoesNotMatchBondingCurve` [VERIFIED-DOC pump.json]. So a failure is attributed by program, never by number alone.
+  - Other failures (6016, 6021, token-program insufficient funds, compute exhausted) are reported with the model's prediction, but don't count toward F.
+- **Slack for N**, in whole basis points, rounded down:
+  - exact-out buy: `(max_quote_amount_in − pay) × 10,000 ÷ pay`;
+  - exact-in buy: `(b_out − min_base_amount_out) × 10,000 ÷ b_out`;
+  - sell: `(receive − min_quote_amount_out) × 10,000 ÷ receive`;
+  - on boosted pools, also `(Q_real − leaves) × 10,000 ÷ leaves` (a 6063 near miss; reported).
+- Multi-hop, mayhem and cashback trades are reported separately, and their own amounts don't count toward P1–P3. Multi-hop trades *do* appear inside the continuity pairs of P5 (FM-4).
 
-**Step 3: recompute and compare.** For every trade, the module takes the pre-trade state (FeeConfig as of that slot) and the decoded instruction arguments, and predicts the scored fields below.
+### 7.4 Step 3: recompute and compare
+- For every scored trade, the module takes the pre-trade state at that trade's **position in the block** (FeeConfig as of that slot) and the decoded instruction arguments.
+- It predicts the **outcome** (success, or the exact failure code) and, for successes, the scored fields below.
+- **State before a failed trade.** A failed trade has no usable event (§4, TS-6). Its pre-state is:
+  - the vault balances in the failed transaction's own `meta.preTokenBalances`;
+  - plus `vqr`, the fee buckets and `S`, carried forward from the last successful state change before it in block order.
+  - The failed transaction's own events are never used.
 
 **Pass criteria. All must hold; there is no tolerance:**
 
@@ -536,21 +660,24 @@ All the event field names above are [VERIFIED-DOC pump_amm.json]. Events are emi
 | P1 | Fee rates `(lp, protocol, creator)` equal the event's `*_basis_points` | **500 / 500** |
 | P2 | `lp_fee`, `protocol_fee`, `coin_creator_fee`, `buyback_fee` equal the event, to the lamport | **500 / 500** |
 | P3 | `quote_amount_in/out`, `user_quote_amount_in/out`, `base_amount_out/in` (and `quote_amount_in_with_lp_fee` / `quote_amount_out_without_lp_fee`) equal the event | **500 / 500** |
-| P4 | **Balance witness**, on transactions with exactly one PumpSwap trade on that pool: the user's quote-account change, both pool-vault changes and the buyback-recipient change equal the §3 update rules (v1 or v2) | 100%, on ≥ 400 trades |
-| P5 | **Continuity:** for consecutive trades on one pool with nothing in between (or with sweeps, BOOST and deposits applied), the predicted post-state of trade *i* equals the observed pre-state of trade *i+1* (`Q`, `B`, `vqr`, buckets) | 100%, on ≥ 200 pairs |
-| P6 | **Network fee:** `meta.fee == 5,000 × signatures + ceil(cu_price × cu_limit ÷ 10⁶)` on ≥ 100 transactions, ≥ 30 of them failed. For failed transactions with a tip transfer, the tip account's balance is unchanged | 100% |
-| P7 | All strata minimums are met; the seed and script are unchanged since Step 0 | yes |
+| P4 | **Balance witness**, on *successful* transactions with exactly one PumpSwap trade on that pool: the user's quote-account change, both pool-vault changes and the buyback-recipient change equal the §3 update rules (v1 or v2) | 100%, on ≥ 400 trades |
+| P5 | **Continuity:** for consecutive state changes on one pool, the predicted post-state of *i* equals the observed pre-state of *i+1* (`Q_vault`, `B`, `vqr`, both buckets, `S`). Sweeps and deposits are applied. **New sub-strata (FM-4, TS-6), all inside the ≥ 200:** (a) ≥ 50 pairs **in the same slot**, ordered by transaction index (the `getBlock` order, with the balance chain as witness), core; (b) ≥ 30 pairs with a **`multi_hop_swap`** between them, whose effect on this pool the model **predicts** from the hop's input (taken from the previous hop's event only when that hop is a bonding curve), deferrable; (c) ≥ 30 pairs with a **`boost_buy_and_burn`** between them, applied from the recorded post-state (the BOOST transaction's post-balances in T6a, the account update in T6b, with `BoostBuyAndBurnEvent` as witness, and `S` reduced by `base_amount_burned`), core; (d) ≥ 20 pairs with a **failed PumpSwap trade** between them, which must change nothing, core. If AR-T1 finds failed transactions that carry trade events, ≥ 5 of the (d) pairs must contain one | 100%, on ≥ 200 pairs |
+| P6 | **Network fee (FM-9.3):** `meta.fee == 5,000 × (signatures + precompile signatures) + ceil(cu_price × L ÷ 10⁶)`. Here `L` is the requested limit capped at 1,400,000 or, with no `SetComputeUnitLimit`, the runtime default of §2c. Checked on ≥ 100 transactions: ≥ 30 failed, ≥ 20 with no `SetComputeUnitLimit`. For failed transactions with a tip transfer, the tip account's balance is unchanged | 100% |
+| P7 | All strata minimums are met (or properly deferred, §7.0). The seed, script, population and audit list are unchanged since Step 0 | yes |
+| **P8** | **Outcome (FM-3):** the predicted outcome (success, or the exact failure code) equals the chain's for every trade in F, every trade in N, and every scored success | **100%** |
+| **P9** | **Coverage and hostile input (FM-5, TS-6):** (a) the model refuses 0 of the audit-sampled U0 trades (refusals on out-of-scope pools are reported); (b) the harness passes the hostile fixtures. A failed transaction carrying a complete `BuyEvent` inner instruction leaves state, prices and holdings unchanged, and is tagged `FAILED_TX_EVENT`. An event-shaped inner instruction from any other program, or one that isn't a direct child of a PumpSwap instruction, is ignored | 100% |
 
 **If anything fails:**
 - Record every mismatch with its trade signature.
 - Fix the model and bump its version.
-- Re-run on a **fresh 500** with a new seed. Never re-score the same sample, which would fit the model to it.
-- If one stratum can't be filled from 14 days of history, the gate waits for the recorder. A stratum we actually trade is never waived.
+- Re-run that part on a **fresh 500** with a new seed. Never re-score the same sample, which would fit the model to it.
+- A core stratum that history can't fill blocks Gate 0→1. A deferrable one moves to T6b (§7.0). A stratum we actually trade is never waived.
 
 **After T6 passes:**
-- The same recompute runs on **every recorded trade** (the two-witness check, DAT-1). Gate 1→2 allows < 0.1% mismatches, each explained.
+- The same recompute runs on **every recorded trade** (the two-witness check, DAT-1), including the outcome check on every recorded failed PumpSwap trade. Gate 1→2 allows < 0.1% mismatches, each explained.
 - Any mismatch on a pool we hold or are about to buy is a **class-A alarm** (buys pause).
-- After any change in §8, buys resume only after **1,000 clean market-wide trades** (DESIGN NEW-9). A tier-table change also triggers a T6 re-run on 500 trades made *after* the change before paper results count again (QNT-R §1d).
+- After any change in §8, buys resume only after **1,000 clean market-wide trades** (DESIGN NEW-9).
+- A tier-table change also triggers a re-run on 500 trades made *after* the change, before paper results count again (QNT-R §1d). It uses the T6b procedure on the tape.
 
 ---
 
