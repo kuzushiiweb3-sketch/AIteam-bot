@@ -12,21 +12,36 @@ Items marked **[PAUL]** need Paul. Never wait on them: use the safe default note
 - [x] Round 2a: red-team attacks all 8 proposals → `team-debate/round2/red-team-attacks.md`
 - [x] Round 2b: each specialist answers the attacks, challenges other areas, and proposes 2–3 edge ideas with a data test
 - [x] Round 2c: red-team re-check of the responses, plus attacks on every edge idea
-- [ ] Round 3: lead-architect rulings → `team-debate/round3/rulings.md`
-- [ ] Write `DESIGN.md` (architecture, decision table, monthly cost, cost per trade, risks, phased build plan, ranked edge ideas)
-- [ ] Write `QUESTIONS_FOR_PAUL.md` (only what nobody else can answer, each with a safe default)
+- [x] Round 3: lead-architect rulings → `team-debate/round3/rulings.md`
+- [x] Write `DESIGN.md` (architecture, decision table, monthly cost, cost per trade, risks, phased build plan, ranked edge ideas)
+- [x] Write `QUESTIONS_FOR_PAUL.md` (only what nobody else can answer, each with a safe default)
 - [ ] Tell Paul the design is ready. **[PAUL]** approve `DESIGN.md` (default if no answer: keep building read-only tools only)
 
-## Next: read-only groundwork (allowed once DESIGN.md exists; nothing signs or sends)
-- [ ] Collect every "Tests to run once allowed" item from all round files into one checklist with the exact domains
-- [ ] **[PAUL]** allow those domains in the cloud environment's network settings (default: keep using fixture data)
-- [ ] (to be filled from DESIGN.md's build plan)
+## Next: Phase 0 (DESIGN.md §7). Read-only work only; nothing signs or sends
+Work that needs no network and no Paul (do these first, in order):
+- [ ] `docs/assumption-register.md`: the ~50 numbered facts the design relies on, each with its tag and the test that settles it
+- [ ] `docs/preregistration.md`: freeze and date the labels, every kill test and pass mark, and the trial families (top-5 ideas, crowding kill, race/no-race rule, stop rule)
+- [ ] `docs/fee-model.md`: the one shared fee model, from Pump's IDL and docs (raw.githubusercontent.com works)
+- [ ] `phase0/test-plan.md`: every network test (D-, F-, P-, RC-, T-, G-, S-, Q-, X- numbers) with its exact domain, expected result and fallback
+- [ ] `docs/costs.md`: the price table, re-checked by web search where possible; mark anything still needing the live pricing page
+Needs network access or accounts:
+- [x] Consolidated domain list → QUESTIONS_FOR_PAUL.md "Setup checklist"
+- [ ] **[PAUL]** allow the List 1 domains and create a free Helius key (default: keep working offline from docs and IDLs)
+- [ ] **[PAUL]** answer Q1 (approve design) and Q2 (budget). Defaults: read-only tools only; spend nothing
+- [ ] Run the Phase 0 network tests → `phase0/results.md` (blocked until the domains are allowed)
+- [ ] T6: fee and price maths match 500 historical trades to the last unit (blocked: needs history access)
+- [ ] Gate 0 → 1 review (red-team signs off)
 
-## Later
-- [ ] (to be filled from DESIGN.md's build plan)
+## Later (DESIGN.md §7)
+- [ ] Phase 1: recorder, decoders, monitors, fees module, daily reports; 14–21 days of data. **[PAUL]** rent the bot server, upgrade Helius to Developer
+- [ ] Phase 2: baselines, lateness curve plus the race/no-race memo (~day 21), BOOST study, gap study, top-5 edge screens, exit tournament, paper simulator, ruin simulation, nightly AI desk with placebo
+- [ ] Week-4 stop checkpoint verdict to Paul (DESIGN.md §8)
+- [ ] Phase 3: paper bot, guard in paper mode, standby seller, watchdog, dashboard, runbooks, drills. **[PAUL]** separate AWS account plus hardware key, alert app, lever drill
+- [ ] Phase 4 (only with Paul's written OK): canary. Phase 5 (only with Paul's OK and ≥25 SOL): live at floor size
 
 ## Decisions made without Paul (safest option chosen; Paul can overrule any of them)
 - 2026-11-04: Team members run as general agents that load their own role file, because new agent types only appear in a fresh session.
 - 2026-11-04: The work moved from the SolanaView repo to this repo at Paul's request. Nothing more will be written to SolanaView.
 - 2026-11-04: Paul's mandate asks the team to find its own edge. No 11th "strategy" agent was added; instead, every
   specialist runs an "edge hunt" in Round 2b, red-team attacks it, and the lead ranks it. This keeps the team Paul defined.
+- 2026-11-05: Design debate finished (Rounds 1–3). DESIGN.md and QUESTIONS_FOR_PAUL.md delivered; waiting for Paul's OK per the kickoff. Until then, only read-only Phase 0 documents are written (CLAUDE.md rule 2).
