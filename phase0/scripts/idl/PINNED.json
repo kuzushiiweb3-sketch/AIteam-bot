@@ -1,0 +1,21 @@
+{
+  "_note": "Pinned copies of Pump.fun's official IDLs. The decoder refuses to start if a file's SHA-256 differs from this table. To adopt a new IDL: fetch it, review the diff, update the hash here and record why in the row results.",
+  "source_repo": "https://github.com/pump-fun/pump-public-docs (branch main)",
+  "fetched_utc": "2026-11-05",
+  "fetched_via": "https://raw.githubusercontent.com/pump-fun/pump-public-docs/main/idl/<file>",
+  "files": {
+    "pump.json": {
+      "program": "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P",
+      "sha256": "7616681ea557975f9f623ac211080f22a93060781eaf4765b0a488d980997207"
+    },
+    "pump_amm.json": {
+      "program": "pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA",
+      "sha256": "b7d8c57a4d9c4dd0109a9ab893052352333252d4eedced10ac091d4d66cab89b"
+    },
+    "pump_fees.json": {
+      "program": "pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ",
+      "sha256": "6b9fa3eccc6e06273076a47b581f9fcb9e531bb7c3c88acbcd44db55a4002b29"
+    }
+  },
+  "matches": "phase0/test-plan.md section 2 'IDL SHA-256 today' (prefix/suffix match checked 2026-11-05)"
+}
