@@ -26,6 +26,13 @@ Work that needs no network and no Paul (do these first, in order):
 - [ ] `docs/tech-stack.md`: choose the programming language and tools for the recorder, decoders and guard (DESIGN.md left this open), comparing at least 2 alternatives; red-team attacks it
 - [ ] `phase0/scripts/`: the read-only Phase 0 test scripts, written in the chosen language and ready to run the moment `HELIUS_API_KEY` and the List 1 domains exist (they only read; they never sign or send)
 - [x] `docs/costs.md`: the price table, re-checked by web search where possible; mark anything still needing the live pricing page
+Red-team Phase 0 review (team-debate/phase0/red-team-phase0-review.md): all five SIGN OFF WITH FIXES
+- [ ] preregistration v1.1: PR-1 to PR-5 (blocking) plus the rest; run the offline false-pass simulations
+- [ ] fee-model v1.1: FM-3 to FM-5 (blocking, T6) plus FM-1 and FM-2 (Phase 3 guard) and the rest
+- [ ] tech-stack v1.1: TS-1, TS-2, TS-6, TS-8 (blocking) plus the rest
+- [ ] assumption register: AR-1 (seven missing High rows), fix A-002 wording, re-rate A-057 and A-058 to High, recount tags
+- [ ] costs: CO-2 to CO-4 before Phase 3; measure data volume before buying the disk
+- [ ] Red-team checks the v1.1 fixes, then the lead signs Gate 0→1 (needs the network tests too)
 Needs network access or accounts:
 - [x] Consolidated domain list → QUESTIONS_FOR_PAUL.md "Setup checklist"
 - [ ] **[PAUL]** allow the List 1 domains and create a free Helius key (default: keep working offline from docs and IDLs)
