@@ -1,5 +1,9 @@
 """Row A09 = test T6 (the Gate 0 -> 1 test): docs/fee-model.md s.7, step by step.
 
+REFEREE ONLY (docs/tech-stack.md v1.1 s.5k). The Gate 0 -> 1 verdict comes from the Rust `fees` crate run
+offline over the fixtures this row saves (fixtures/phase0/A09/t6_trades.jsonl.gz). Every outcome written
+here is prefixed "REFEREE-ONLY"; it is evidence for the Rust run, never the verdict itself.
+
   Step 0  freeze:       t6_freeze.json must exist and match t6_select.py's SHA-256 and seed (else nothing is fetched)
   Step 1  calibration:  50 trades (up to 150), every candidate answer to the FC7 questions (fee_model.Semantics)
                         is tried; exactly one family of answers must reproduce all of them, or we stop
@@ -31,6 +35,7 @@ from .txparse import (Tx, compute_budget, lamport_delta, precompile_signatures, 
 FREEZE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "t6_freeze.json")
 SELECT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "t6_select.py")
 STOP = "STOP"
+REFEREE = "REFEREE-ONLY (Python referee; the verdict comes from the Rust fees crate over these fixtures): "
 
 
 def file_sha256(path: str) -> str:
@@ -397,7 +402,7 @@ def run(ctx) -> dict:
     save_trade_fixtures(ctx, trades, txs)
     if cal["chosen"] is None or ctx.opts.t6_stop_after_calibration:
         ctx.store.save_artifacts(ctx.row, artifacts)
-        return {"outcome": "INCOMPLETE: calibration " + cal["summary"]["verdict"], "numbers": result_numbers,
+        return {"outcome": REFEREE + "INCOMPLETE: calibration " + cal["summary"]["verdict"], "numbers": result_numbers,
                 "headline": cal["summary"]["verdict"],
                 "follow_up": "Read calibration mismatches in fixtures/phase0/A09/artifacts.json; fix the model, bump "
                              "MODEL_VERSION, re-freeze with a new seed, and re-run on a fresh sample."}
@@ -439,8 +444,9 @@ def run(ctx) -> dict:
     head = (f"P1 {sc['P1']['passed']}/{sc['P1']['n']}, P2 {sc['P2']['passed']}/{sc['P2']['n']}, "
             f"P3 {sc['P3']['passed']}/{sc['P3']['n']}, P4 {sc['P4']['passed']}/{sc['P4']['n']}, "
             f"P5 {sc['P5']['passed']}/{sc['P5']['n']}, P6 {sc['P6']['passed']}/{sc['P6']['n']}")
-    return {"outcome": outcome, "headline": head, "numbers": result_numbers,
-            "follow_up": ("Gate 0->1 fee check passed; red-team signs off." if outcome == "PASS" else
+    return {"outcome": REFEREE + outcome, "headline": "referee: " + head, "numbers": result_numbers,
+            "follow_up": ("Referee passed: run the Rust fees crate over fixtures/phase0/A09/ for the Gate 0->1 verdict; "
+                          "both must agree on every trade." if outcome == "PASS" else
                           "Record every mismatch (artifacts.json), fix the model, bump the version, re-freeze, "
                           "and re-run on a FRESH 500 (never re-score the same sample).")}
 

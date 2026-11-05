@@ -185,7 +185,9 @@ class Store:
         for meta in rows_meta:
             r = results.get(meta["row"])
             if r is None:
-                outcome, number, domain = ("NOT RUN" if not meta.get("deferred") else "DEFERRED: " + meta["deferred"]), "", ""
+                d = meta.get("deferred")
+                outcome = "NOT RUN" if not d else (f"NOT RUN ({d})" if d.startswith("optional") else "DEFERRED: " + d)
+                number, domain = "", ""
             else:
                 outcome = r.get("outcome", r.get("status", "?"))
                 number = r.get("headline", "")

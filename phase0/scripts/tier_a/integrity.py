@@ -10,6 +10,7 @@ import gzip
 import hashlib
 import json
 import os
+import time
 import zlib
 
 from p0 import pump
@@ -256,12 +257,11 @@ def ts_t3(ctx) -> dict:
                 cursor_oldest = min(e["slot"] for e in more if e.get("slot") is not None)
                 cursor = more[-1]["signature"]
             per[label]["pages_for_60s"].append(depth)
-        rest = 60e9 - (now_ns() - t_poll) if not ctx.opts.quick else 20e9 - (now_ns() - t_poll)
-        if rest > 0 and now_ns() - start + rest < duration_ns:
-            import time
-            time.sleep(rest / 1e9)
-        elif now_ns() - start + max(rest, 0) >= duration_ns:
+        rest = (20e9 if ctx.opts.quick else 60e9) - (now_ns() - t_poll)
+        if now_ns() - start + max(rest, 0) >= duration_ns:
             break
+        if rest > 0:
+            time.sleep(rest / 1e9)
     minutes = max(1e-9, (now_ns() - start) / 6e10)
     calls = sum(v["calls"] for v in per.values())
     credits = ctx.budget.data["credits_est"] - credits0

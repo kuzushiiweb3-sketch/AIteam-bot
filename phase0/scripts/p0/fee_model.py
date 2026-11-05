@@ -6,9 +6,9 @@ REVIEW NOTES
   * Where fee-model.md leaves a question open for calibration (FC7), the choice is an explicit
     field of `Semantics`, so the calibration step can test each candidate and the scoring step
     uses exactly one frozen choice. Nothing is tuned silently.
-  * tech-stack.md s.5k says the authoritative T6 scorer is the Rust `fees` crate. This Python
-    module is the reviewer-readable Phase 0 implementation; once the Rust crate exists, both must
-    agree on every saved T6 fixture (a differential test).
+  * REFEREE ONLY. docs/tech-stack.md v1.1 s.5k: the T6 / A09 verdict comes from the Rust `fees` crate,
+    run offline over the fixtures A09 saves. This Python module is the reviewer-readable referee; the
+    Rust crate and this module must agree on every saved T6 fixture (a differential test).
 
 Sources: docs/fee-model.md s.2a-s.3 and s.7, which cite Pump's SDK 2.1.0 (fees.ts, util.ts, buy.ts,
 sell.ts) [VERIFIED-DOC there]. Re-checked against the SDK source in this session.

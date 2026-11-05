@@ -50,6 +50,7 @@ def parse_args(argv):
     ap.add_argument("--only", help="comma-separated row ids, e.g. A01,A03")
     ap.add_argument("--quick", action="store_true", help="small samples and short durations (never a pass mark)")
     ap.add_argument("--rerun", action="store_true", help="re-run rows that already have a final result")
+    ap.add_argument("--with-optional", action="store_true", help="also run optional rows (TS-T3)")
     ap.add_argument("--preflight", action="store_true", help="check the key and hosts, print, write nothing")
     ap.add_argument("--list", action="store_true", help="list rows and their current outcome")
     ap.add_argument("--public-fallback", action="store_true",
@@ -68,7 +69,7 @@ def parse_args(argv):
 
 def selected_rows(args):
     if not args.only:
-        return list(ROWS)
+        return [r for r in ROWS if not r.optional or args.with_optional]
     ids = [x.strip().upper() for x in args.only.split(",") if x.strip()]
     unknown = [i for i in ids if i not in BY_ID]
     if unknown:
@@ -193,7 +194,9 @@ def main(argv=None, *, repo: str = REPO, transport=None, environ=None) -> int:
     args = parse_args(argv if argv is not None else sys.argv[1:])
     store = Store(repo)
     rows = selected_rows(args)
-    rows_meta = [{"row": r.row, "tests": r.tests, "deferred": r.deferred} for r in ROWS]
+    rows_meta = [{"row": r.row, "tests": r.tests,
+                  "deferred": r.deferred or ("optional: run with --with-optional or --only " + r.row if r.optional else None)}
+                 for r in ROWS]
     if args.list:
         res = store.all_results()
         for r in ROWS:

@@ -10,7 +10,7 @@ from typing import Callable, Optional
 
 from p0 import t6
 
-from . import core, keyless, live, trades
+from . import core, integrity, keyless, live, trades
 
 HELIUS = "mainnet.helius-rpc.com"
 PUBLIC = "api.mainnet-beta.solana.com"
@@ -28,6 +28,7 @@ class Row:
     deferred: Optional[str] = None
     env_var: str = "HELIUS_API_KEY"
     prereqs: tuple = field(default_factory=tuple)
+    optional: bool = False          # run only with --with-optional or --only
 
 
 ROWS = [
@@ -52,16 +53,21 @@ ROWS = [
     Row("A01", "D1, FC3 (Global part)", "Are Pump's migration settings unchanged?", core.a01, public_fallback=True,
         hosts=(HELIUS, PUBLIC)),
     Row("A02", "D7, SEC-r1.4 (Pump part)", "Program upgrade baseline", core.a02, public_fallback=True, hosts=(HELIUS, PUBLIC)),
+    Row("TS-T2", "TS-5 (tech-stack v1.1 s.12)", "Do the on-chain IDL accounts match the GitHub pin?", integrity.ts_t2,
+        public_fallback=True, hosts=(HELIUS, PUBLIC)),
     Row("A03", "D2, CF-T3, P1 (one-tx share), PR-1 audit", "How does a migration look; does the authority key catch every one?",
         core.a03),
-    Row("A04", "D5, AR-T1 (TS-6)", "Are events always inner event calls? How often are logs cut off?", core.a04),
+    Row("A04", "D5 (+ TS-6 tag counts)", "Are events always inner event calls? How often are logs cut off?", core.a04),
+    Row("AR-T1", "TS-6 (tech-stack v1.1 s.12)", "Do failed Pump/PumpSwap trades come back with inner events or 'Program data:' logs?",
+        integrity.ar_t1),
     Row("A05", "CF-T1, D16, R9, FC5", "What kind of token is a Pump coin today?", core.a05, prereqs=("A04",)),
     Row("A06", "CF-T4", "Is the migrated pool canonical, and is its LP burned?", core.a06, prereqs=("A03",)),
     Row("A07", "RC4, RC3", "How many pool layouts exist? Is virtual_quote_reserves live and signed?", core.a07,
         prereqs=("A03",)),
     Row("A08", "QT-T5, FC1, FC2, FC3, FC4, FC8, EXE-r1.2", "Do live fee settings, pool sizes and deposits match fee-model?",
         core.a08, public_fallback=True, hosts=(HELIUS, PUBLIC), prereqs=("A03", "A04")),
-    Row("A09", "QT-T6 = T6 (Gate 0->1), FC6, FC7, D12, X6, Q1, RSK-r1.3, FM-3/4/5", "Do our fee and price maths reproduce real trades to the lamport?",
+    Row("A09", "QT-T6 = T6 (Gate 0->1), FC6, FC7, D12, X6, Q1, RSK-r1.3, FM-3/4/5",
+        "Do our fee and price maths reproduce real trades to the lamport? (Python = referee only; verdict = Rust fees crate)",
         t6.run, prereqs=("A03", "A08")),
     # ---- the rest ----
     Row("A10", "P6, SEC-S4 (mainnet part)", "Can a payout account be owned by someone other than the signer?", trades.a10,
@@ -89,6 +95,8 @@ ROWS = [
         prereqs=("A16",)),
     Row("A31", "F1 + P5 (pilot)", "How do dumping insiders get their tokens?", trades.a31, prereqs=("A03",)),
     Row("A32", "F3 (our own lookup)", "What does our own funding lookup cost?", trades.a32, prereqs=("A16",)),
+    Row("TS-T3", "TS-3 (tech-stack v1.1 s.12), optional", "Silent-feed probe: slots per reply, pagination depth, credits (1 h)",
+        integrity.ts_t3, optional=True),
 ]
 
 BY_ID = {r.row: r for r in ROWS}
