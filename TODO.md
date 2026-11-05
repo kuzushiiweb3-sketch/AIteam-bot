@@ -15,7 +15,7 @@ Items marked **[PAUL]** need Paul. Never wait on them: use the safe default note
 - [x] Round 3: lead-architect rulings → `team-debate/round3/rulings.md`
 - [x] Write `DESIGN.md` (architecture, decision table, monthly cost, cost per trade, risks, phased build plan, ranked edge ideas)
 - [x] Write `QUESTIONS_FOR_PAUL.md` (only what nobody else can answer, each with a safe default)
-- [ ] Tell Paul the design is ready. **[PAUL]** approve `DESIGN.md` (default if no answer: keep building read-only tools only)
+- [x] Tell Paul the design is ready. Paul approved it on 2026-11-05
 
 ## Next: Phase 0 (DESIGN.md §7). Read-only work only; nothing signs or sends
 Work that needs no network and no Paul (do these first, in order):
@@ -23,11 +23,13 @@ Work that needs no network and no Paul (do these first, in order):
 - [ ] `docs/preregistration.md`: freeze and date the labels, every kill test and pass mark, and the trial families (top-5 ideas, crowding kill, race/no-race rule, stop rule)
 - [ ] `docs/fee-model.md`: the one shared fee model, from Pump's IDL and docs (raw.githubusercontent.com works)
 - [ ] `phase0/test-plan.md`: every network test (D-, F-, P-, RC-, T-, G-, S-, Q-, X- numbers) with its exact domain, expected result and fallback
+- [ ] `docs/tech-stack.md`: choose the programming language and tools for the recorder, decoders and guard (DESIGN.md left this open), comparing at least 2 alternatives; red-team attacks it
+- [ ] `phase0/scripts/`: the read-only Phase 0 test scripts, written in the chosen language and ready to run the moment `HELIUS_API_KEY` and the List 1 domains exist (they only read; they never sign or send)
 - [ ] `docs/costs.md`: the price table, re-checked by web search where possible; mark anything still needing the live pricing page
 Needs network access or accounts:
 - [x] Consolidated domain list → QUESTIONS_FOR_PAUL.md "Setup checklist"
 - [ ] **[PAUL]** allow the List 1 domains and create a free Helius key (default: keep working offline from docs and IDLs)
-- [ ] **[PAUL]** answer Q1 (approve design) and Q2 (budget). Defaults: read-only tools only; spend nothing
+- [x] **[PAUL]** Q1 approved, Q2 = CAD $1,000/month (2026-11-05)
 - [ ] Run the Phase 0 network tests → `phase0/results.md` (blocked until the domains are allowed)
 - [ ] T6: fee and price maths match 500 historical trades to the last unit (blocked: needs history access)
 - [ ] Gate 0 → 1 review (red-team signs off)

@@ -10,6 +10,16 @@
 
 ---
 
+## Paul's answers so far
+| Q | Answer | Date |
+|---|---|---|
+| Q1 approve DESIGN.md | **Approved** | 2026-11-05 |
+| Q2 monthly running-cost budget | **CAD $1,000 a month** (about USD $700 at ~1.42 CAD per USD [VERIFIED-SEARCH, 30rates, Oct 14 2026]; re-check the rate monthly). The expected ~USD $275 and the high case ~USD $604 both fit inside it | 2026-11-05 |
+| Setup Step 2, Helius key | Paul will add `HELIUS_API_KEY` later today | 2026-11-05 |
+| All other questions | Not answered yet. **Defaults apply.** | |
+
+---
+
 ## A. Approvals
 
 **Q1. Do you approve `DESIGN.md`?**

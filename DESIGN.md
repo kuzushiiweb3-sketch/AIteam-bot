@@ -1,5 +1,7 @@
 # DESIGN: AI-assisted trading desk for graduated Pump.fun coins
 
+**Status: approved by Paul on 2026-11-05.** Monthly running-cost budget: CAD $1,000 (about USD $700). Real money still needs Paul's separate, explicit OK at Phases 4 and 5.
+
 ## In plain English (for Paul)
 - We are building a bot that watches every Pump.fun coin, waits until a freshly graduated coin's quick sellers have left, buys small, and sells fast when insiders start dumping. It trades on **paper (pretend money) by default, forever**, until you personally switch real money on.
 - We **won't try to be first in**. The fastest bots sit next to the validators, and we can't beat them cheaply. We aim to choose better *when* to get in, and to get out faster and cheaper than app users.
