@@ -4,7 +4,7 @@
 - This is the one rulebook for "what does a trade really cost, and what price do we really get". The paper simulator, the backtests, the strategy and the guard all use it, so they can never disagree.
 - On a freshly graduated coin, Pump.fun takes **1.25% each way**. After the coin's value passes about 420 SOL, this falls to **1.20%**, and it keeps falling as the coin grows. We now read this table directly from Pump's own files and from a copy of the live on-chain setting. It is no longer a guess from blog posts.
 - A full buy and sell costs about **3.0–3.7% of the bet in calm conditions** (0.1–0.5 SOL). In a crash it costs about **3.4–6.2%** (the small 0.1 SOL test bets suffer most), on top of the market's own fall. Pump's fee is about 2.5 points of that, and no route avoids it.
-- Before paper results count, our maths must reproduce **500 real past trades exactly, to the last lamport** (test T6). Pump can change its fees and other settings at any time without changing its program, so we watch 30-odd settings and pause buying when any of them moves.
+- Before paper results count, our maths must reproduce **500 real past trades exactly, to the last lamport** (test T6). Pump can change its fees and other settings at any time without changing its program, so we watch dozens of settings and pause buying when any important one moves.
 
 **Status:** fee-model v1.0, 2026-11-05. Owner: execution-engineer. Consumers: `sim/`, `research/`, `strategy/`, `guard/`, `fees/` (DESIGN §7). This is a specification, not code. It contains no signing or sending logic.
 
@@ -142,8 +142,8 @@ One buy plus one sell, the buy at a **calm, fresh-graduate pool** (85 SOL effect
 |---|---|---|---|---|
 | Calm buy (Jito bundle-only) | 5,000 | 20,000 | Jito 100,000 | **125,000** |
 | Calm sell (Jito + Sender SWQoS-only, one signature) | 5,000 | 100,000 | Jito 100,000 + Sender 5,000 | **210,000** |
-| Crash sell: 2 landed failures, then success | 2 × (5,000 + 1,000,000) | success: 1,000,000 | success: ≈ 1,000,000 (Jito ≈ p95 + Sender) | **4,015,000** |
-| Bad crash: 4 landed failures at the 0.002 SOL rung, then success at 0.002 SOL + 0.001 SOL tips | 4 × 2,005,000 | 2,000,000 | 1,000,000 | **11,025,000** |
+| Crash sell: 2 landed failures at the 0.001 SOL rung, then success | 3 × 5,000 | 2 × 1,000,000 (failures) + 1,000,000 (success) | success only: ≈ 1,000,000 (Jito ≈ p95 + Sender) | **4,015,000** |
+| Bad crash: 4 landed failures at the 0.002 SOL rung, then success | 5 × 5,000 | 4 × 2,000,000 + 2,000,000 | success only: 1,000,000 | **11,025,000** |
 
 The bad crash is the sensitivity case. It is capped by the 0.01 SOL exit reserve per position (EXE-2).
 
@@ -381,7 +381,8 @@ All the event field names above are [VERIFIED-DOC pump_amm.json]. Events are emi
 **Reading the numbers.**
 - Pump's fee is about 2.1–2.5 points of every round trip.
 - Network costs only matter at 0.1 SOL or in a crash.
-- Above about 0.5 SOL, our own price impact grows faster than fixed costs shrink.
+- In calm exits, bigger bets cost more per SOL, because our own price impact grows with size.
+- In crash exits, smaller bets cost more per SOL, because the escalated network fees are fixed amounts.
 - The 0.1 SOL canary size pays about 6% in a crash. That's acceptable for a measurement run, never for a strategy.
 
 ---
