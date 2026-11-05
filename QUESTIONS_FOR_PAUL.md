@@ -101,6 +101,16 @@
 **Q17. May we spend about $10–20 once on an X (Twitter) history test?** It shows whether early posting patterns predict anything. If it passes, ongoing X data would be capped at $1.50 a day (about $45 a month).
 - **Default:** **no X data.** Social signals stay on-chain only, at $0.
 
+## E. New questions (added 2026-11-05 from Phase 0 work)
+
+**Q18. Does your CAD $1,000 a month include sales tax and card fees? Which province are you in?**
+- *Why:* most of the bills are in US dollars. Tax and card fees could add up to about 15%, and that matters only in the high-cost case.
+- **Default:** we treat CAD $1,000 as the all-in ceiling, alert you at CAD $900, and never upgrade a plan without asking.
+
+**Q19. Should the research ceiling (Q3) be raised from USD $750 to about USD $1,000 (CAD $1,420)?**
+- *Why:* at the expected bills, USD $750 runs out around week 12, about 2–3 weeks before the month-3 checkpoint where we judge the results. USD $1,000 lines the two up.
+- **Default:** USD $750 stands until you answer. If it's reached first, we pause paid services and report.
+
 ---
 
 ## Setup checklist for Paul
@@ -207,6 +217,8 @@ www.man7.org
 www.vultr.com
 www.digitalocean.com
 <the alert service host - we'll name it after test G6>
+calculator.aws
+www.bankofcanada.ca
 ```
 
 **List 4: optional research (add only if you want these comparisons)**
