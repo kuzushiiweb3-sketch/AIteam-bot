@@ -1,0 +1,22 @@
+{
+  "file": "feeconfig_mainnet_2026-09-08.b64",
+  "what": "Raw account data (base64) of the PumpSwap FeeConfig 5PHirr8joyTMp9JMm6nW7hNDVyEYdkzDqazxPD7RaTjx",
+  "captured_by_pump": "slot 445186127, 2026-09-08, getAccountInfo(..., {encoding: base64}) (per the SDK file's own comment)",
+  "source": "npm package @pump-fun/pump-swap-sdk 2.1.0, file package/src/__tests__/feeConfigMainnetFixture.ts (constant MAINNET_FEE_CONFIG_DATA_BASE64, joined)",
+  "tarball": "https://registry.npmjs.org/@pump-fun/pump-swap-sdk/-/pump-swap-sdk-2.1.0.tgz",
+  "tarball_integrity_checked": "sha512-O0ulb5In/pMzxpcWIkzU17N27HQNZhGGof4fhgXZUkRj/vDbrZsDrViNoouhR52bvtfRf61e/bSvEg/h+35ueA== (matches the registry's published dist.integrity, 2026-11-05)",
+  "tarball_sha256": "1ef56832347f06653acf154d8e2072f1bfc9343f0e6c203cf4517bb1948e8865",
+  "decoded_bytes": 4073,
+  "decoded_sha256": "e1c4647573d8caacc33b267781272c4fa0ad30a70900dddbaab512db670d3af2",
+  "sdk_expected_values": {
+    "bump": 255,
+    "admin": "FFWtrEQ4B4PKQoVuHYzZq8FabGkVatYzDpEVHsK5rrhF",
+    "flat_fees": [25, 5, 0],
+    "fee_tiers": 25,
+    "stable_fee_tiers": 25,
+    "note": "The SDK file also lists every tier row; the unit tests compare against those rows (copied into tests/fixtures/feeconfig_sdk_rows.json)."
+  },
+  "why_not_raw_githubusercontent": "the SDK repository is not public on GitHub (raw.githubusercontent.com/pump-fun/pump-swap-sdk returned 404 on 2026-11-05); the npm tarball is the published copy",
+  "handling": "The tarball was downloaded into an empty scratch folder, its hash checked, and only this text constant was read. No SDK code was run.",
+  "tag": "VERIFIED-DOC (Pump's official SDK)"
+}

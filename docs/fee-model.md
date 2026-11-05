@@ -2,11 +2,12 @@
 
 ## In plain English (for Paul)
 - This is the one rulebook for "what does a trade really cost, and what price do we really get". The paper simulator, the backtests, the strategy and the guard all use it, so they can never disagree.
-- On a freshly graduated coin, Pump.fun takes **1.25% each way**. After the coin's value passes about 420 SOL, this falls to **1.20%**, and it keeps falling as the coin grows. We now read this table directly from Pump's own files and from a copy of the live on-chain setting. It is no longer a guess from blog posts.
-- A full buy and sell costs about **3.0–3.7% of the bet in calm conditions** (0.1–0.5 SOL). In a crash it costs about **3.4–6.2%** (the small 0.1 SOL test bets suffer most), on top of the market's own fall. Pump's fee is about 2.5 points of that, and no route avoids it.
-- Before paper results count, our maths must reproduce **500 real past trades exactly, to the last lamport** (test T6). Pump can change its fees and other settings at any time without changing its program, so we watch dozens of settings and pause buying when any important one moves.
+- On a freshly graduated coin, Pump.fun takes **1.25% each way**, falling to **1.20%** once the coin is worth about 420 SOL. We read this from Pump's own files and the live on-chain setting, and we watch dozens of settings Pump can change without warning.
+- A full buy and sell costs about **3.0–3.7% of the bet in calm conditions** (0.1–0.5 SOL) and about **3.4–6.2% in a crash**, on top of the market's own fall. The extra fall while a crash sell keeps retrying is added on top by the simulator.
+- Before paper results count, our maths must reproduce real past trades to the last unit **and predict exactly which trades fail**. This test (T6) now has two parts: T6a on past data before recording starts, and T6b on our own recordings before any "final exam" result counts.
+- Version 1.1 fixes two traps found by red-team: a sell never also closes the coin account (a stranger could block it with 1 token of dust), and on "boosted" pools the bot checks the pool can really pay before it sells.
 
-**Status:** fee-model v1.0, 2026-11-05. Owner: execution-engineer. Consumers: `sim/`, `research/`, `strategy/`, `guard/`, `fees/` (DESIGN §7). This is a specification, not code. It contains no signing or sending logic.
+**Status:** fee-model **v1.1**, 2026-11-05 (v1.0 the same day, revised after red-team's Phase 0 review, `team-debate/phase0/red-team-phase0-review.md` §2; the changes are listed in §12). Owner: execution-engineer. Consumers: `sim/`, `research/`, `strategy/`, `guard/`, `fees/` (DESIGN §7). This is a specification, not code. It contains no signing or sending logic.
 
 **Tags.**
 - **[VERIFIED-DOC]**: primary source read this session, with its URL (full list in §11).
@@ -27,12 +28,14 @@ One buy plus one sell, the buy at a **calm, fresh-graduate pool** (85 SOL effect
 
 | Stake | Calm exit (price unchanged) | Crash exit (price −30%, escalated sell) | DESIGN §5b said (calm / crash) |
 |---|---|---|---|
-| **0.1 SOL** | 0.00303 SOL = **3.03%** = $0.30 | 0.00615 SOL = **6.15%** = $0.62 | 3.1% / 6.8% (EXE-R §1c) |
-| **0.25 SOL** | 0.00792 SOL = **3.17%** = $0.79 | 0.00971 SOL = **3.88%** = $0.97 | 3.22% / 4.93% |
-| **0.5 SOL** | 0.01828 SOL = **3.66%** = $1.83 | 0.01706 SOL = **3.41%** = $1.71 | 3.75% / 4.70% |
+| **0.1 SOL** | 0.00304 SOL = **3.04%** = $0.30 | 0.00616 SOL = **6.16%** = $0.62 | 3.1% / 6.8% (EXE-R §1c) |
+| **0.25 SOL** | 0.00792 SOL = **3.17%** = $0.79 | 0.00971 SOL = **3.89%** = $0.97 | 3.22% / 4.93% |
+| **0.5 SOL** | 0.01829 SOL = **3.66%** = $1.83 | 0.01707 SOL = **3.41%** = $1.71 | 3.75% / 4.70% |
 
 - These costs come **on top of** the market move. The −30% fall itself is the trade's result, not a cost.
-- The crash column is lower than DESIGN's because, after a fall, the sell is worth less, so the percentage fees on the sell are smaller. DESIGN §5b charged every sell-side cost at the full stake.
+- **Included since v1.1:** the separate clean-up transaction that closes the empty coin account after the sell (6,000 lamports; §6 rule 11, FM-1).
+- **Excluded: chase slippage.** In a crash, the price can keep falling while the sell retries (arrival delay, plus a margin of up to 15%). That is a real execution loss. It is not in this table; the simulator adds it from the replayed tape (§6 rule 14, FM-8).
+- The crash column is lower than DESIGN's because, after a fall, the sell is worth less, so the percentage fees on the sell are smaller. DESIGN §5b charged every sell-side cost at the full stake. **This must never be used to loosen any limit, margin or stop** (FM-8): it leaves out chase slippage, which can be larger than the whole difference.
 - DESIGN's figures stay a valid **conservative planning envelope**. The simulator uses this document's exact per-trade maths instead (§9).
 
 ---
@@ -48,6 +51,11 @@ One buy plus one sell, the buy at a **calm, fresh-graduate pool** (85 SOL effect
   - `solana-sdk/rent/src/lib.rs`;
   - Agave `feature-set/src/lib.rs`.
 - **Blocked or unavailable this session:** `solana.com` (WebFetch: host not resolvable); `api.github.com` (403); the `gh` CLI (repo not enabled). Jito's and Helius's own docs were not fetched; their figures are [VERIFIED-SEARCH].
+- **Added for v1.1 (read from the shell through `raw.githubusercontent.com` and `registry.npmjs.org`, never run):**
+  - the pinned IDLs in `phase0/scripts/idl/` (same SHA-256 as `PINNED.json`): error texts, `Pool` field docs, BOOST events, the admin instructions of §8a;
+  - the SDK again: `fees.ts` (`SOL_LIKE_QUOTE_MINTS`), `sell.ts` (`sellAmounts`, the 6063 check), `boost.spec.ts` (how σ, vqr and the fee buckets relate);
+  - Agave `svm/src/transaction_processor.rs` (inner instructions are recorded whatever the result), `program-runtime/src/execution_budget.rs` and `compute-budget-instruction/src/compute_budget_instruction_details.rs` (default compute limit), `fee/src/lib.rs` (signature count);
+  - SPL Token and Token-2022 `processor.rs`, `error.rs` and `instruction.rs` (close fails on a non-zero balance; anyone can transfer in).
 
 ---
 
@@ -63,21 +71,24 @@ One buy plus one sell, the buy at a **calm, fresh-graduate pool** (85 SOL effect
 | 6 | **Jito tip** | Our choice: a transfer instruction inside the transaction; calm 100,000 lamports (DESIGN) | Jito tip account | No. Not paid if the transaction fails or a bundle is dropped | Minimum: Helius docs say 1,000 lamports on one page and 5,000 on another [VERIFIED-SEARCH, conflicting]. "Not paid on failure" [UNVERIFIED: test FC6] |
 | 7 | **Helius Sender tip** | SWQoS-only minimum 5,000 lamports; Sender Max minimum 1,000,000 lamports (0.001 SOL). Sender also requires a compute-price instruction | Helius tip account | Same as 6 | [VERIFIED-SEARCH helius.dev sender-swqos-only] |
 | 8 | **Price impact** | Constant-product maths (§3). Not a fee, but a real cost against the spot price | The pool (and later traders) | No | [VERIFIED-DOC formulas §3] |
-| 9 | **Our token account (deposit)** | `(128 + data_len) × lamports_per_byte`. 165 bytes (classic SPL) or about 170 bytes (Token-2022 account with the ImmutableOwner extension) | Locked in our own account | **Yes, in full**, when the final sell closes the account | Formula and constants [VERIFIED-DOC solana-sdk rent]. Token-2022 size [UNVERIFIED: FC5] |
+| 9 | **Our token account (deposit)** | `(128 + data_len) × lamports_per_byte`. 165 bytes (classic SPL) or about 170 bytes (Token-2022 account with the ImmutableOwner extension) | Locked in our own account | **Yes, in full**, when the **separate clean-up transaction** (row 17) closes the account. Never inside a sell (FM-1) | Formula and constants [VERIFIED-DOC solana-sdk rent]. Token-2022 size [UNVERIFIED: FC5] |
 | 10 | **wSOL account deposit** | One deposit, once (a persistent account, DESIGN #7) | Locked in our own account | Yes, if ever closed | as 9 |
 | 11 | **`user_volume_accumulator`** | Created by PumpSwap on our wallet's first trade if missing, paid by us. About 90 bytes ≈ 0.0015 SOL at 6,960 lamports/byte. **Once per wallet** | Locked in the PDA | Yes, via `close_user_volume_accumulator` | Created-if-missing [VERIFIED-DOC TRADE_V2 #13]. Size [DERIVED from the IDL, UNVERIFIED: FC8] |
 | 12 | **Pool layout top-up** | A few lamports, only on pools older than the latest appended fields. Fresh graduates: 0 | The pool | No | [VERIFIED-DOC TRADE_V2 #1] |
-| 13 | **Failed attempts** | Base + priority per **landed** failure. 0 for a dropped bundle or an expired transaction | Validator | No | [VERIFIED-DOC fee doc]; bundle part [VERIFIED-SEARCH via A-039] |
+| 13 | **Failed attempts** | Base + priority per **landed** failure. 0 for a dropped bundle or an expired transaction. A sell the guard already predicts will fail with 6063 is never sent, so it costs 0 (§3a) | Validator | No | [VERIFIED-DOC fee doc]; bundle part [VERIFIED-SEARCH via A-039] |
 | 14 | **Signer** | AWS KMS, $0.15 per 10,000 asymmetric signs ≈ $0.000015 per signature | AWS | No | [VERIFIED-SEARCH, A-065] |
 | 15 | **API / route fee** | 0. We build PumpSwap instructions directly, with no aggregator | none | n/a | design (DESIGN #7) |
-| 16 | **Sandwich allowance** (an expectation, not a fee) | Crash sells: 0.2% of sell proceeds (2% margin × 10% hit rate) | Attacker | No | [UNVERIFIED, P14; DESIGN §5b] |
+| 16 | **Sandwich allowance** (an expectation, not a fee) | Base view: crash sells 0.2% of sell proceeds (2% margin × 10% hit rate), other trades 0. **Pessimistic view: also 0.1 × m on every trade sent outside a Jito bundle**, until P14 measures it (PR-14a) | Attacker | No | [UNVERIFIED, P14; DESIGN §5b] |
+| 17 | **Clean-up transaction** (new in v1.1, FM-1) | One extra transaction after the final sell: burn any dust, close the empty token account. 5,000 base + priority (paper fallback 1,000) = **6,000 lamports**; pessimistic view 12,000 (one dusted failure) | Validator | No, but it releases row 9's deposit | Close fails on a non-zero balance [VERIFIED-DOC SPL Token and Token-2022 `process_close_account`: `NonNativeHasBalance`, error 11]. Compute use [UNVERIFIED: X2] |
 
 ### 2a. The PumpSwap fee table (canonical, SOL-quoted pools)
 
 **How a pool's fee schedule is chosen** [VERIFIED-DOC fees.ts `feesForQuoteMint`; FEE_PROGRAM_README]:
 - **Non-canonical pool:** `flat_fees`. In the capture these are lp 25 / protocol 5 / creator 0. We do **not trade** non-canonical pools in v1.
 - **Canonical pool** (`Pool.creator` = the Pump PDA `["pool-authority", base_mint]` of program `6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P`), by quote mint:
-  - SOL-like quote: `fee_tiers`, chosen by market cap;
+  - SOL-like quote: `fee_tiers`, chosen by market cap. **"SOL-like" means exactly three mints:** the default key `11111111111111111111111111111111` (what legacy curves store for SOL), wrapped SOL `So11111111111111111111111111111111111111112`, and the Token-2022 native mint `9pan9bMn5HatX4EJdBwg9VgCa7Uz5HL8N1m5D3NdXejP` [VERIFIED-DOC SDK `fees.ts` `SOL_LIKE_QUOTE_MINTS` and its test in `fees.spec.ts`] (FM-9.2).
+    - **Pricing** uses the SOL tiers for all three, because the chain does.
+    - **Trading scope** (prereg U0, "wrapped SOL") is wSOL-quoted pools only. Pools quoted in the Token-2022 native mint or the default key are priced correctly but not traded, and are listed by name in the daily exclusion report. So prereg U0 and this file agree.
   - USDC: `stable_fee_tiers`;
   - any other quote: `exotic_flat_fees`, or `flat_fees` while those are all zero.
 - **Per-pool creator rate:** if `GlobalConfig.creator_fee_configurable` is on and `Pool.creator_fee_bps > 0`, that rate replaces the tier's creator rate. Pump says this never applies to SOL- or USDC-quoted coins (error 6077 `CreatorFeeNotConfigurableForQuote`) [VERIFIED-DOC pump_amm.json errors; PUMP_SWAP_README].
@@ -124,7 +135,7 @@ One buy plus one sell, the buy at a **calm, fresh-graduate pool** (85 SOL effect
 - **For our costs, nothing changes:** "Prices, slippage checks and fee amounts are the same" as v1 [VERIFIED-DOC TRADE_V2].
 - **It does change our arithmetic in four places:**
   1. Never treat the raw vault balance as liquidity.
-  2. Sells are paid only from *real* reserves = vault − `protocol_fees` − `creator_fees`. A sell larger than that fails with 6063 `InsufficientRealQuoteReserves` [VERIFIED-DOC sell.ts `sellAmounts`; pump_amm.json errors].
+  2. Sells are paid only from *real* reserves = vault − `protocol_fees` − `creator_fees`. A sell larger than that fails with 6063 `InsufficientRealQuoteReserves` [VERIFIED-DOC sell.ts `sellAmounts`; pump_amm.json errors]. On boosted pools this cap can bind well before the quoted price runs out; §3a says how pricing, the simulator and the guard handle it (FM-2).
   3. The two-witness balance check (§7) must expect the kept fees to stay in the vault.
   4. When reconstructing pool state from events, sweep events (`SweepPoolFeeEvent`, bucket 0 = protocol, 1 = creator) must be applied. Fees must not be counted as income twice.
 - **Exceptions:**
@@ -134,9 +145,14 @@ One buy plus one sell, the buy at a **calm, fresh-graduate pool** (85 SOL effect
 ### 2c. Network fees and tips
 - **Base fee:** 5,000 lamports per signature, half burned. Charged whether the transaction succeeds or fails [VERIFIED-DOC fee-structure.mdx: "Charged whether the transaction succeeds or fails"].
 - **Priority fee:** `ceil(cu_price × cu_limit ÷ 10⁶)` lamports, on the requested limit [VERIFIED-DOC agave `get_prioritization_fee`]. So the builder asks for a tight limit (test X2 measures real usage). Paper charges the **same requested limit** the live builder would use.
+- **When a transaction sets no limit** (many rival transactions don't), the runtime uses a default, and the priority fee is charged on that default (FM-9.3) [VERIFIED-DOC agave `compute_budget_instruction_details.rs` `calculate_default_compute_unit_limit`; `execution_budget.rs` constants]:
+  - `L_default = 200,000 × (top-level instructions of non-builtin programs) + 3,000 × (top-level builtin instructions)`, capped at `1,400,000`;
+  - compute-budget, System and the other builtin programs count at 3,000 each; a builtin that has been migrated to an ordinary program (its feature gate active) counts at 200,000;
+  - a requested limit above 1,400,000 is cut to 1,400,000; no `SetComputeUnitPrice` means a priority fee of 0.
+- **Base fee signatures** include precompile signatures: `5,000 × (transaction signatures + ed25519 + secp256k1 + secp256r1 precompile signatures)` [VERIFIED-DOC agave `fee/src/lib.rs` `calculate_signature_fee`]. Ours have exactly 1; rivals may have more.
 - **New transaction format.** In Solana's new "v1" transaction format, the priority fee is a fixed lamport amount, not price × limit [VERIFIED-DOC fee-structure.mdx]. We send v0 transactions. If we ever switch, this formula changes (watched, §8).
 - **Tips** are ordinary transfer instructions inside our transaction. If the transaction fails on-chain, all its instructions are undone except the fee, so the tip is not paid [inference from "fee is still charged" on failure; UNVERIFIED: FC6 checks real failed transactions]. A bundle that fails is not included at all and costs nothing [VERIFIED-SEARCH, A-039].
-- **Default sender plan, from DESIGN #8 and EXE-R §1a/§1c** (these are levels we chose, all [UNVERIFIED] until P4/X1 data):
+- **Default sender plan, from DESIGN #8 and EXE-R §1a/§1c** (these are levels we chose, all [UNVERIFIED] until P4/X1 data). **This is the one bid table the simulator loads** (PR-14c). Prereg §2.5's "bid fallbacks" (S6) charge no tip on buys and calm sells; where the two differ, this table rules, and prereg S6 should point here (request to the lead, §9).
 
 | Leg | Base | Priority | Tips | Total (lamports) |
 |---|---|---|---|---|
@@ -144,8 +160,10 @@ One buy plus one sell, the buy at a **calm, fresh-graduate pool** (85 SOL effect
 | Calm sell (Jito + Sender SWQoS-only, one signature) | 5,000 | 100,000 | Jito 100,000 + Sender 5,000 | **210,000** |
 | Crash sell: 2 landed failures at the 0.001 SOL rung, then success | 3 × 5,000 | 2 × 1,000,000 (failures) + 1,000,000 (success) | success only: ≈ 1,000,000 (Jito ≈ p95 + Sender) | **4,015,000** |
 | Bad crash: 4 landed failures at the 0.002 SOL rung, then success | 5 × 5,000 | 4 × 2,000,000 + 2,000,000 | success only: 1,000,000 | **11,025,000** |
+| **Clean-up** (new, FM-1): separate transaction after the final sell; plain sender, never urgent | 5,000 | 1,000 (fallback: limit 20,000 CU × 50,000 micro-lamports per CU, until X2) | none | **6,000** |
 
-The bad crash is the sensitivity case. It is capped by the 0.01 SOL exit reserve per position (EXE-2).
+- In simulation, the priority amounts above are **floors**. In a contested slot the paper bid is the larger of the floor and prereg's dynamic level (p75 of the pool's landed same-direction priority fee per CU over 150 slots for buys and calm sells, p90 for emergency sells), within prereg's caps.
+- The bad crash is the sensitivity case. It is meant to be capped by the 0.01 SOL exit reserve per position (EXE-2). **Found in the v1.1 re-read:** 11,025,000 lamports is about 0.001 SOL *above* that 10,000,000-lamport reserve, so in this case the reserve binds before the ladder ends. What the chase does when the reserve runs out is a risk-manager decision (§9); paper keeps charging the ladder as written, which is the costlier choice.
 
 ### 2d. Account rent (deposits), now a moving number
 - **Formula:** rent-exempt minimum = `(128 + data_len) × lamports_per_byte` [VERIFIED-DOC solana-sdk rent: `ACCOUNT_STORAGE_OVERHEAD = 128`, `DEFAULT_LAMPORTS_PER_BYTE = 6,960` with the SIMD-0194 threshold of 1.0].
@@ -163,14 +181,21 @@ The bad crash is the sensitivity case. It is capped by the 0.01 SOL exit reserve
 | 696 (final) | 203,928 | 207,408 | 0.21% / 0.08% / 0.04% |
 
 - **Refund rule.** Closing an account returns *all* its lamports, so we get back exactly what we deposited, even if rent fell in the meantime [VERIFIED-SEARCH: "Accounts funded before each step keep their extra lamports", Raydium/Chainstack docs].
-- **The final sell closes the token account in the same transaction** (DESIGN #8, EXE-7), so the round-trip rent cost is **0**. The deposit is only tied up during the hold.
-- Token-2022 accounts cannot be closed while holding withheld transfer fees. Security already rejects transfer-fee and transfer-hook coins before buying.
+- **v1.1 (FM-1): the token account is never closed inside a sell.** v1.0 followed DESIGN #8 / EXE-7 and closed the account in the final sell. Red-team showed that this lets a stranger make our crash sell fail:
+  - a PumpSwap sell sells a *fixed* `base_amount_in` [VERIFIED-DOC pump_amm.json `sell` args];
+  - anyone can send tokens to any token account: a transfer is authorised by the *sender* only, and the receiving account just has to be unfrozen and of the same mint [VERIFIED-DOC SPL Token `process_transfer`];
+  - closing an account that still holds tokens fails with `NonNativeHasBalance` (error 11, "Non-native account can only be closed if its balance is zero"), in **both** SPL Token and Token-2022 [VERIFIED-DOC both `process_close_account`];
+  - a failed instruction undoes the whole transaction, sell included [standard Solana atomicity; UNVERIFIED on real Token-2022 sells: FM-T1].
+  - So 1 raw unit of dust sent between building and landing makes a "sell all + close" fail. An attacker watching our wallet could repeat it every few slots for 5,000 lamports a time. Holder-reward payouts in the coin might do it by accident [UNVERIFIED].
+- **The rule now:** the sell only sells; a separate clean-up transaction closes the empty account afterwards (§6 rule 11). The deposit stays **locked** until that clean-up lands, then comes back in full. The round-trip rent cost is still 0 if clean-up succeeds; clean-up itself costs 6,000 lamports (§2c). If clean-up is given up (repeated dusting), the deposit is booked as lost (the "token account left open" line in §5).
+- Token-2022 accounts cannot be closed while holding withheld transfer fees [VERIFIED-DOC Token-2022 `process_close_account` checks `TransferFeeAmount`]. Security already rejects transfer-fee and transfer-hook coins before buying.
 
 ### 2e. Things in the data that are *not* costs to us
 - **BOOST** (`boost_buy_and_burn`) buys from a separate boost vault and **burns** the tokens. This raises the price and **lowers the coin's total supply**, and the supply feeds the market cap and so the fee tier [VERIFIED-DOC pump_amm.json: `base_mint` is writable; the `BoostBuyAndBurnEvent` has `base_amount_burned` and `boost_vault_remaining`].
   - Its events carry no fee fields, so BOOST pays no pool fee [UNVERIFIED inference from the IDL].
   - A boosted pool carries positive "boost reserves" inside `virtual_quote_reserves`. These raise the effective quote reserve used for **price** but cannot be paid out, so sells are capped by real reserves (6063: "effective = real + virtual is pricing-only; payout is capped at real_vault") [VERIFIED-DOC].
-  - Exactly how `init_boost` sets the boost reserves is [UNVERIFIED: FC7 rebuilds it from `InitBoostEvent` and `BoostBuyAndBurnEvent`].
+  - The boost reserve σ is exactly `Q − Q_real = vqr + protocol_fees + creator_fees` [VERIFIED-DOC SDK `boost.spec.ts`: "sigma 1_000_000 minus 100_000 of fee buckets gives virtualQuoteReserves 900_000"]. So σ can be read from the `Pool` account alone (§3a).
+  - Exactly how `init_boost` sets σ, and whether any σ is left when BOOST ends, is [UNVERIFIED: FC7 rebuilds it from `InitBoostEvent` (`virtual_quote_reserves`, `real_quote_reserves_after`) and `BoostBuyAndBurnEvent` (`quote_amount_in_used`, `base_amount_burned`, `virtual_quote_reserves`, `real_quote_reserves_after`, `base_reserves_after`, `boost_vault_remaining`); FM-T2 measures the leftover].
 - **Sweeps** move waiting fees out of the vault; price is unchanged (§2b).
 - **LP deposits and withdrawals** change reserves (`DepositEvent`, `WithdrawEvent`). They are not allowed on boost pools (6064).
 
@@ -189,10 +214,13 @@ Q_vault = pool_quote_token_account.amount                        # raw vault, in
 vqr     = Pool.virtual_quote_reserves                            # SIGNED: = boost_reserves - protocol_fees - creator_fees
 Q       = Q_vault + vqr                                          # effective quote reserves; program guarantees 0 <= Q < 2^64
 Q_real  = Q_vault - Pool.protocol_fees - Pool.creator_fees       # what sells can be paid from
+sigma   = Q - Q_real                                             # = vqr + protocol_fees + creator_fees = boost reserve
+                                                                 #   (0 on unboosted pools)  [VERIFIED-DOC boost.spec.ts]
 B       = pool_base_token_account.amount                         # base side has no virtual part
 S       = 10^15 if Pool.is_mayhem_mode else base_mint.supply     # live supply (BOOST burns reduce it)
                                                                  # [VERIFIED-DOC PUMP_SWAP_README, NEGATIVE_VQR, VQR_FEE_ADJ, util.ts]
-refuse to quote (class-A alarm) if Q == 0 or B == 0
+          # S is the LIVE supply: burns are already in it. Never subtract recorded burns again (prereg PR-15.1).
+refuse to quote (class-A alarm) if Q == 0 or B == 0 or sigma < 0 or Q_real < 0
 
 # ---- prices ----
 spot_price  = Q / B                         # lamports per raw token; SOL per token = Q*10^6 / (B*10^9) for 6-decimal coins
@@ -201,7 +229,7 @@ market_cap  = Q * S // B                    # lamports; the program's own formul
 # ---- fee rates (pre-trade state) ----
 rates(state):
     if not canonical(state):            r = fee_config.flat_fees
-    elif quote_mint in {SOL-like}:      r = tier(fee_config.fee_tiers, market_cap)
+    elif quote_mint in {SOL-like}:      r = tier(fee_config.fee_tiers, market_cap)   # SOL-like = {default key, wSOL, Token-2022 native} (§2a)
     elif quote_mint == USDC:            r = tier(stable_fee_tiers or fee_tiers, market_cap)
     else:                               r = exotic_flat_fees if nonzero else flat_fees
     if global_config.creator_fee_configurable and Pool.creator_fee_bps > 0:
@@ -233,8 +261,11 @@ pay     = net + lp + pr + cr  (<= X)                              # fail 6040 if
 q_out   = Q * b // (B + b)                                        # gross, rounds DOWN
 lp, pr, cr = fee(q_out, r.lp), fee(q_out, r.protocol), fee(q_out, r.creator)
 leaves  = q_out - lp                                              # what leaves the reserves (LP fee stays)
-fail 6063 if Q_real < leaves
+fail 6063 if Q_real < leaves                                      # = SDK quoteAmountOutWithoutLpFee > realQuoteReserves
 receive = q_out - lp - pr - cr                                    # fail 6004 if receive < min_quote_amount_out
+
+# ---- largest sellable amount under the payout cap (§3a) ----
+b_max(h) = largest b in [0, h] with leaves(b) <= Q_real           # integer binary search; leaves(b) never falls as b grows
 
 # ---- state update after our own (or any) trade ----
 # Effective reserves move the same way in v1 and v2:
@@ -251,16 +282,62 @@ receive = q_out - lp - pr - cr                                    # fail 6004 if
 ```
 
 **Price limits we set.**
-- **Buys:** `buy_exact_quote_in_v2` with `spendable_quote_in` = stake and `min_base_amount_out = floor(b_out × (1 − m))`.
-- **Sells:** `min_quote_amount_out = floor(receive × (1 − m))`.
+- **Buys:** `buy_exact_quote_in_v2` with `spendable_quote_in` = stake and a `min_base_amount_out` from `m` (below).
+- **Sells:** a `min_quote_amount_out` from `m`.
 - Both are quoted on the latest state.
-- `m` follows DESIGN #9: normal = clamp(2 × the 2-block price swing, 1%, 5%); emergency up to 15%; re-quoted every 2 blocks.
-- **There are no partial fills on PumpSwap:** each trade fills completely or fails [VERIFIED-DOC instruction semantics, PUMP_SWAP_README].
+- `m` follows DESIGN #9 and prereg §2.5: normal 1–5%, emergency 3–15%. **v1.1 defines it in whole basis points, with no floating point (FM-9.1):**
+
+```
+# P = Q/B is kept as a fraction; "end of slot s" = the effective reserves after the last change in slot s
+# (a skipped slot keeps the previous state).  ref = end of slot s-2.
+swing2_bps = ceil_div( |Q_s * B_ref - Q_ref * B_s| * 10_000,  Q_ref * B_s )      # = |P_s / P_ref - 1|, rounded up
+m_bps      = clamp(2 * swing2_bps, 100, 500)            # normal
+m_bps      = clamp(3 * swing2_bps, 300, 1_500)          # emergency: hard stop, sell pressure, insider flow, FAST_DUMP
+min_base_amount_out  = b_out   * (10_000 - m_bps) // 10_000          # rounds down
+min_quote_amount_out = receive * (10_000 - m_bps) // 10_000          # rounds down
+max_quote_amount_in  = ceil_div(pay * (10_000 + m_bps), 10_000)      # only for exact-out buys, which we don't use
+```
+
+  - Rounding: the swing rounds up; min-outs round down and max-ins round up. So a limit is at most 1 base unit looser than `m`, and never tighter.
+  - Products such as `Q × B` need 128-bit integers (as above).
+- **Re-quote interval (PR-14d):** the live builder re-quotes at least every 2 blocks (DESIGN #9). **Paper prices every sell attempt with a quote 3 slots old** (prereg S7), the more conservative value. Both files say so.
+- **There are no partial fills on PumpSwap:** each trade fills completely or fails [VERIFIED-DOC instruction semantics, PUMP_SWAP_README]. A smaller sell is a new trade, not a partial fill (§3a).
 
 **Price impact, in plain terms [DERIVED from the formulas].**
 - Buying with `net` lamports pays an average of `(Q + net)/B` per token, about `net/Q` above spot. 0.25 SOL into 85 SOL is about 0.29%.
 - Selling `b` tokens gets an average of `Q/(B + b)`, about `b/(B + b)` below spot.
 - In a pool where nothing else happens, a buy followed by a sell of the same tokens gets the buy's impact back (only the fees are lost). Whether our push "stays" in a live market is unknowable, so the **base view assumes it does not** (§6, rule 4).
+
+### 3a. Boosted pools: the price can include SOL that sellers can't be paid (FM-2)
+
+**In plain words.** On a "boosted" pool, part of the SOL that sets the price is virtual: it counts for the price but is not in the vault. A seller can only be paid from the real SOL. If too many people sell, the last ones fail (error 6063), whatever fee they pay.
+
+**What the chain does** [VERIFIED-DOC pump_amm.json errors 6063 and 6065; SDK `sell.ts` `sellAmounts`; `boost.spec.ts`]:
+- Price uses the effective reserve `Q = Q_real + σ`.
+- A sell pays out only from `Q_real`. If `q_out − lp > Q_real`, the **whole** sell fails with 6063; nothing is partly filled. Pump's own error text says: "effective = real + virtual is pricing-only; payout is capped at real_vault, so quote min(out, real_vault)".
+- BOOST spends SOL from a separate boost vault (`BoostBuyAndBurnEvent.boost_vault_remaining`). Whether σ falls to 0 when BOOST ends, or a remainder stays priced in, is **unmeasured** [UNVERIFIED: FM-T2].
+
+**Definitions (integers):**
+- `rho_bps = Q_real × 10,000 // Q`: the share of the quoted SOL that can actually be paid. It is 10,000 on unboosted pools.
+- `b_max(h)`: the largest part of a holding `h` that one sell can carry (§3).
+- **Payable value** of `h` tokens: `V_pay(h) = receive(b_max(h))`. The remainder `h − b_max(h)` is valued at **0** for risk, stops and exits until real reserves grow (new buys add real SOL). The position is flagged `PAYOUT_CAPPED`.
+
+**Rules:**
+1. **Pricing.** Every quote, mark-to-market, stop level and exit decision uses `V_pay`, never the effective-reserve value alone. On unboosted pools `V_pay` is the normal quote, so nothing changes there.
+2. **Simulator.** 6063 is checked at our landing position: after the same-direction sells ahead of us in that slot (§6 rule 3), which use up `Q_real` first. A simulated 6063 is a landed failure (base + priority, no tip). Like the guard, the paper bot never *sends* a sell it already predicts will fail. Paper 6063s therefore come only from state that moved between decision and landing, which is exactly the crowded-exit case.
+3. **Guard (Phase 3).** Before each sell attempt, on its own latest reads:
+   - require `leaves ≤ Q_real − H`. The headroom `H` is the `leaves` of every sell on this pool seen in the guard's feed in the current and previous slot, and at least 1% of `Q_real` [proposal; risk-manager freezes the number];
+   - if that fails: **don't send** (it would be a certain fee loss), raise a class-A alarm, and sell the largest chunk that passes, re-checking every block [proposal; risk-manager and security confirm partial selling under a payout cap];
+   - **never escalate priority fees or tips because of 6063.** More fee can't create real reserves. The "never give up" chase continues with chunks, not with bigger bids;
+   - after a landed 6063: re-read, recompute `b_max`, continue.
+4. **Risk features** (request to risk-manager): `rho_bps` at the decision slot and through the hold, and our payout headroom `(Q_real − leaves(h)) × 10,000 // Q_real`, as skip and exit features. Their thresholds are set from FM-T2 and frozen in the preregistration before use. None is assumed here.
+5. **Before T6 has validated the 6063 line** (T6a, or T6b if deferred, §7), paper treats any sell with `leaves > 0.98 × Q_real` at the landing position as a 6063 failure (a 2% safety band).
+
+**Measurement FM-T2 (extends FC7; §10).** On 100 boosted pools drawn from the independent audit (prereg PR-1):
+- σ, `Q`, `Q_real` and `rho_bps` at t_bend (the slot of the pool's last `BoostBuyAndBurnEvent`), t_bend + 900 slots and t_bend + 9,000 slots;
+- σ compared with the last `boost_vault_remaining`;
+- the count of 6063 failures per pool in [t_bend, t_bend + 9,000].
+- **Decision:** if σ = 0 at t_bend + 900 on all 100 pools, FM-2 is rare in practice; the checks stay anyway, as they cost nothing. If not, `rho_bps` becomes a mandatory risk feature, and 6063 becomes a **core** stratum of T6b.
 
 ---
 
@@ -323,9 +400,13 @@ receive = q_out - lp - pr - cr                                    # fail 6004 if
 
 All the event field names above are [VERIFIED-DOC pump_amm.json]. Events are emitted as a self-call to the program's `event_authority` PDA (`["__event_authority"]`), so decoders read them from **inner instructions**, not only from logs [VERIFIED-DOC: `event_authority` is in every trade's account list].
 
+**Events inside failed transactions are not trades (TS-6, new in v1.1).**
+- *The risk.* A transaction can make a real trade by CPI, emit a perfect `BuyEvent`, and then fail on purpose in a later instruction. The chain undoes the trade, but the record of the transaction may still contain the event. Solana's validator software records the inner-instruction trace **whatever the transaction's result**: `deconstruct_transaction` runs before the success-or-failure status is set, and it is not conditioned on it [VERIFIED-DOC agave `svm/src/transaction_processor.rs`, `execute_loaded_transaction`]. Whether RPC and Yellowstone then *return* those inner instructions for failed transactions is [UNVERIFIED: AR-T1]. We record failed transactions on purpose (rival bids, the losers' tape), so they are in our data either way.
+- *The rule* (§6 rule 13). An event counts only if it is a direct child of a PumpSwap instruction **in a successful transaction** (`meta.err` is null). From a failed transaction the model may use only: `meta.err`, `meta.fee`, the signature count, the instruction arguments, the compute-budget instructions, and the **pre**-balances as a witness of the state before it. Its events are tagged `FAILED_TX_EVENT` and never change pool state, prices, fee tiers, holdings, rival counts or labels.
+
 **Who reads what, live.**
 - The bot host takes everything from its Chainstack stream: account updates are the primary state, and events are the witness.
-- The guard (ruling C9) subscribes to held pools, both vaults and GlobalConfig. **It must add the PumpSwap `FeeConfig` and each held coin's mint account to that list.** Without them its min-out quote can use a stale tier or supply (request to security and data, §9).
+- The guard (ruling C9) subscribes to held pools, both vaults and GlobalConfig. **It must add the PumpSwap `FeeConfig` and each held coin's mint account to that list.** Without them its min-out quote can use a stale tier or supply (request to security and data, §9). The `Pool` account it already reads carries `virtual_quote_reserves` and both fee buckets, so σ, `Q_real` and `b_max` (§3a) need no extra subscription.
 
 ---
 
